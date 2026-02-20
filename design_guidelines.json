@@ -1,0 +1,169 @@
+{
+  "design_system": {
+    "identity": {
+      "name": "E1 Enterprise ERP",
+      "tone": "Precision, Authority, High-Density, Control",
+      "archetype": "Swiss & High-Contrast (Archetype 4) mixed with Performance Pro (Archetype 2)",
+      "principles": [
+        "Density is clarity: Show more data, but organize it perfectly.",
+        "Color is status: Use color only to signal state (Paid, Late, Processing).",
+        "Type is structure: Use font weight and mono fonts to create hierarchy."
+      ]
+    },
+    "typography": {
+      "font_family": {
+        "headings": "Karla, sans-serif",
+        "body": "Inter, sans-serif",
+        "mono": "JetBrains Mono, monospace"
+      },
+      "scale": {
+        "h1": "text-3xl font-bold tracking-tight text-slate-900",
+        "h2": "text-2xl font-semibold tracking-tight text-slate-900",
+        "h3": "text-xl font-medium text-slate-900",
+        "body_default": "text-sm text-slate-700 leading-normal",
+        "body_small": "text-xs text-slate-500",
+        "mono_num": "font-mono text-sm tracking-tight"
+      },
+      "imports": [
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Karla:wght@500;600;700&display=swap"
+      ]
+    },
+    "colors": {
+      "primary": {
+        "DEFAULT": "#0f172a",
+        "foreground": "#f8fafc",
+        "hover": "#1e293b"
+      },
+      "secondary": {
+        "DEFAULT": "#f1f5f9",
+        "foreground": "#0f172a"
+      },
+      "accent": {
+        "DEFAULT": "#e2e8f0",
+        "foreground": "#0f172a"
+      },
+      "status": {
+        "success": { "bg": "#dcfce7", "text": "#166534", "border": "#86efac", "label": "Paid / Atendido" },
+        "warning": { "bg": "#fef9c3", "text": "#854d0e", "border": "#fde047", "label": "Partial / Conferência" },
+        "info": { "bg": "#dbeafe", "text": "#1e40af", "border": "#93c5fd", "label": "Implanted / Pedido" },
+        "error": { "bg": "#fee2e2", "text": "#991b1b", "border": "#fca5a5", "label": "Late / Atrasado" }
+      },
+      "surface": {
+        "canvas": "#f8fafc",
+        "card": "#ffffff",
+        "border": "#e2e8f0",
+        "header": "#ffffff"
+      }
+    },
+    "spacing": {
+      "container_padding": "p-6 md:p-8",
+      "section_gap": "gap-8",
+      "element_gap": "gap-4",
+      "table_density": "p-2"
+    },
+    "layout": {
+      "grid_system": {
+        "dashboard": "grid grid-cols-1 md:grid-cols-4 gap-4",
+        "form": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6"
+      },
+      "sidebar": {
+        "width": "w-64",
+        "collapsed": "w-16",
+        "bg": "bg-slate-900",
+        "text": "text-slate-300",
+        "active": "bg-slate-800 text-white"
+      }
+    },
+    "components": {
+      "buttons": {
+        "primary": "bg-slate-900 text-white hover:bg-slate-800 rounded-md px-4 py-2 font-medium text-sm transition-all shadow-sm active:scale-95",
+        "secondary": "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-md px-4 py-2 font-medium text-sm transition-all shadow-sm",
+        "ghost": "bg-transparent hover:bg-slate-100 text-slate-700 rounded-md px-3 py-2 text-sm"
+      },
+      "inputs": {
+        "default": "flex h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+      },
+      "cards": {
+        "base": "rounded-lg border border-slate-200 bg-white text-slate-950 shadow-sm",
+        "hover_effect": "hover:shadow-md transition-shadow duration-200"
+      },
+      "tables": {
+        "wrapper": "rounded-md border border-slate-200 overflow-hidden bg-white",
+        "header": "bg-slate-50 border-b border-slate-200 px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider",
+        "row": "border-b border-slate-100 hover:bg-slate-50/50 transition-colors",
+        "cell": "p-2 align-middle text-sm text-slate-700",
+        "cell_num": "p-2 align-middle text-sm text-slate-700 font-mono text-right"
+      }
+    },
+    "visual_enhancers": {
+      "glass": "bg-white/80 backdrop-blur-md border border-white/20 shadow-sm",
+      "shadows": {
+        "soft": "shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
+        "sharp": "shadow-[0_1px_2px_rgba(0,0,0,0.1)]"
+      }
+    }
+  },
+  "assets": {
+    "images": [
+      {
+        "category": "background",
+        "description": "Login Screen Background - Abstract Geometric",
+        "url": "https://images.unsplash.com/photo-1543817625-95f25b299975?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGdlb21ldHJpYyUyMGJsdWUlMjBnbGFzcyUyMGFyY2hpdGVjdHVyZXxlbnwwfHx8fDE3NzE2Mjc1MTF8MA&ixlib=rb-4.1.0&q=85",
+        "usage": "Full screen background for /login route with dark overlay"
+      }
+    ],
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width={1.5} size={18}"
+    }
+  },
+  "implementation_plan": {
+    "phases": [
+      {
+        "name": "Phase 1: Foundation",
+        "tasks": [
+          "Install fonts (Karla, Inter, JetBrains Mono)",
+          "Configure Tailwind colors and borderRadius",
+          "Setup Sidebar Layout wrapper"
+        ]
+      },
+      {
+        "name": "Phase 2: Core Modules (Masters)",
+        "tasks": [
+          "Client Master (CRUD)",
+          "Material Master (CRUD) - Weight & Segment logic"
+        ]
+      },
+      {
+        "name": "Phase 3: Operational Flow",
+        "tasks": [
+          "Order Management (Status Workflow: Typed -> Implanted -> Attended)",
+          "Order PDF Generation"
+        ]
+      },
+      {
+        "name": "Phase 4: Finance & Dashboard",
+        "tasks": [
+          "Fiscal Notes (Multi-maturity)",
+          "Commission Engine (Auto-calc)",
+          "Cockpit Dashboard (Charts)"
+        ]
+      }
+    ]
+  },
+  "universal_guidelines": {
+    "do_not": [
+      "DO NOT use gradients for text.",
+      "DO NOT center align data tables.",
+      "DO NOT use generic rounded-xl everywhere; use rounded-md for enterprise feel.",
+      "DO NOT use 'Inter' for Headings."
+    ],
+    "must": [
+      "MUST use 'JetBrains Mono' for all financial values and ID codes.",
+      "MUST right-align all monetary and numerical columns.",
+      "MUST use defined Status Colors for visual feedback.",
+      "MUST include data-testid on all interactive elements."
+    ]
+  },
+  "instructions_to_main_agent": "You are building a high-density, high-performance ERP. Prioritize speed and density over whitespace. Follow the 'Swiss Grid' philosophy: distinct lines, clear hierarchy, no fluff. Use the provided image for the Login screen only. All other screens should be clean, data-heavy interfaces. Use 'recharts' for the Commission Cockpit."
+}

@@ -1,34 +1,47 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+.App {
+  min-height: 100vh;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+.status-badge-digitado {
+  @apply bg-slate-100 text-slate-700 border-slate-300;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.status-badge-implantado {
+  @apply bg-blue-100 text-blue-800 border-blue-300;
 }
 
-.App-link {
-    color: #61dafb;
+.status-badge-atendido {
+  @apply bg-green-100 text-green-800 border-green-300;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.status-badge-parcial {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-300;
+}
+
+.status-badge-pago {
+  @apply bg-green-100 text-green-700 border-green-300;
+}
+
+.status-badge-pendente {
+  @apply bg-yellow-100 text-yellow-700 border-yellow-300;
+}
+
+.status-badge-atrasado {
+  @apply bg-red-100 text-red-700 border-red-300;
+}
+
+.data-table {
+  @apply w-full border-collapse;
+}
+
+.data-table th {
+  @apply bg-slate-50 border-b border-slate-200 px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider;
+}
+
+.data-table td {
+  @apply border-b border-slate-100 px-4 py-2 text-sm text-slate-700;
+}
+
+.data-table tbody tr:hover {
+  @apply bg-slate-50/50;
 }

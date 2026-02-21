@@ -182,17 +182,25 @@ const Dashboard = () => {
 
       {/* Info Section */}
       <Card className="mt-6 p-6 bg-slate-50 border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: 'Karla, sans-serif' }}>
-          Sobre as Métricas de Performance
+        <h3 className="text-lg font-semibold text-slate-900 mb-3" style={{ fontFamily: 'Karla, sans-serif' }}>
+          Entendendo as Métricas
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
           <div>
-            <p className="font-medium text-blue-700 mb-1">• Pedidos Implantados (TON)</p>
-            <p className="text-slate-600">Soma do peso total (em toneladas) de todos os pedidos com status "Implantado" no mês atual. Conversão automática: KG ÷ 1000 = TON. A comissão prevista é calculada sobre o valor faturado baseado no segmento do material.</p>
+            <p className="font-semibold text-blue-700 mb-2">📊 Métricas de Tonelagem</p>
+            <div className="space-y-2 text-slate-600">
+              <p><span className="font-medium">• Pedidos Implantados (TON):</span> Peso total em toneladas de pedidos com status "Implantado" no mês atual. Conversão automática: KG ÷ 1000.</p>
+              <p><span className="font-medium">• Pedidos Faturados (TON):</span> Peso total das Notas Fiscais emitidas no mês atual.</p>
+            </div>
           </div>
           <div>
-            <p className="font-medium text-green-700 mb-1">• Pedidos Faturados (TON)</p>
-            <p className="text-slate-600">Soma do peso (em toneladas) das Notas Fiscais emitidas no mês atual. A comissão realizada representa a soma das comissões de vencimentos já pagos, independente do mês de emissão.</p>
+            <p className="font-semibold text-green-700 mb-2">💰 Métricas Financeiras</p>
+            <div className="space-y-2 text-slate-600">
+              <p><span className="font-medium">• Pedidos do Mês:</span> Valor total (R$) de todos os pedidos criados no mês corrente.</p>
+              <p><span className="font-medium">• Faturado no Mês:</span> Valor total de Notas Fiscais emitidas no mês.</p>
+              <p><span className="font-medium">• Comissão do Mês:</span> Soma das comissões cujos vencimentos caem no mês atual (independente de quando a NF foi emitida).</p>
+              <p><span className="font-medium">• Comissões a Receber:</span> Total global de comissões pendentes que ainda não foram liquidadas.</p>
+            </div>
           </div>
         </div>
       </Card>

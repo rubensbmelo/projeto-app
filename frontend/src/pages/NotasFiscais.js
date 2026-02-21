@@ -113,7 +113,7 @@ const NotasFiscais = () => {
   const getStatusIcon = (status) => {
     if (status === 'Pago') return <CheckCircle size={16} className="text-green-600" />;
     if (status === 'Atrasado') return <XCircle size={16} className="text-red-600" />;
-    return <Clock size={16} className="text-yellow-600" />;
+    return <Clock size={16} className="text-slate-600" />;
   };
 
   const getPedidoInfo = (pedidoId) => {

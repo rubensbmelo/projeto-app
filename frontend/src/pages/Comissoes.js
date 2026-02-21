@@ -132,13 +132,13 @@ const Comissoes = () => {
           </div>
         </Card>
 
-        <Card className="p-6 border-yellow-200 bg-yellow-50" data-testid="comissao-pendente-card">
+        <Card className="p-6 border-slate-200 bg-slate-50" data-testid="comissao-pendente-card">
           <div>
-            <p className="text-sm font-medium text-yellow-600 uppercase tracking-wider">Comissão Pendente</p>
-            <h3 className="text-3xl font-bold text-yellow-900 mt-2 font-mono">
+            <p className="text-sm font-medium text-slate-700 uppercase tracking-wider">Comissão Pendente</p>
+            <h3 className="text-3xl font-bold text-slate-900 mt-2 font-mono">
               R$ {totalComissaoPendente.toFixed(2)}
             </h3>
-            <p className="text-sm text-yellow-700 mt-2">
+            <p className="text-sm text-slate-700 mt-2">
               {vencimentos.filter(v => v.status === 'Pendente').length} parcelas aguardando
             </p>
           </div>
@@ -199,8 +199,8 @@ const Comissoes = () => {
       {/* Tabela Detalhada - Pendentes */}
       {comissoesPorStatus['Pendente']?.length > 0 && (
         <Card className="mb-6">
-          <div className="p-4 bg-yellow-50 border-b border-yellow-200">
-            <h3 className="font-semibold text-yellow-900">Comissões Pendentes</h3>
+          <div className="p-4 bg-slate-50 border-b border-slate-200">
+            <h3 className="font-semibold text-slate-900">Comissões Pendentes</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="data-table">
@@ -224,7 +224,7 @@ const Comissoes = () => {
                     <td className="text-center">{item.parcela}</td>
                     <td>{new Date(item.data_vencimento).toLocaleDateString('pt-BR')}</td>
                     <td className="text-right font-mono">R$ {item.valor.toFixed(2)}</td>
-                    <td className="text-right font-mono font-medium text-yellow-700">R$ {item.comissao_calculada.toFixed(2)}</td>
+                    <td className="text-right font-mono font-medium text-slate-700">R$ {item.comissao_calculada.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

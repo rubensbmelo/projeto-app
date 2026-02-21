@@ -1,5 +1,11 @@
 .App {
   min-height: 100vh;
+  background-color: #F8FAFC;
+}
+
+/* Status Badges - Cores apenas em badges pequenos */
+.status-badge {
+  @apply px-2 py-1 rounded text-xs font-medium border;
 }
 
 .status-badge-digitado {
@@ -7,15 +13,15 @@
 }
 
 .status-badge-implantado {
-  @apply bg-blue-100 text-blue-800 border-blue-300;
+  @apply bg-blue-100 text-blue-700 border-blue-300;
 }
 
 .status-badge-atendido {
-  @apply bg-green-100 text-green-800 border-green-300;
+  @apply bg-green-100 text-green-700 border-green-300;
 }
 
 .status-badge-parcial {
-  @apply bg-yellow-100 text-yellow-800 border-yellow-300;
+  @apply bg-orange-100 text-orange-700 border-orange-300;
 }
 
 .status-badge-pago {
@@ -23,25 +29,69 @@
 }
 
 .status-badge-pendente {
-  @apply bg-yellow-100 text-yellow-700 border-yellow-300;
+  @apply bg-orange-100 text-orange-700 border-orange-300;
 }
 
 .status-badge-atrasado {
   @apply bg-red-100 text-red-700 border-red-300;
 }
 
+/* Tabelas Enterprise - Padrão Oracle/SAP */
 .data-table {
-  @apply w-full border-collapse;
+  @apply w-full;
+}
+
+.data-table thead {
+  @apply bg-slate-50 border-b border-slate-200;
 }
 
 .data-table th {
-  @apply bg-slate-50 border-b border-slate-200 px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider;
+  @apply px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider;
+}
+
+.data-table tbody {
+  @apply divide-y divide-slate-100 bg-white;
 }
 
 .data-table td {
-  @apply border-b border-slate-100 px-4 py-2 text-sm text-slate-700;
+  @apply px-4 py-3 text-sm text-slate-700;
+}
+
+/* Efeito Zebra */
+.data-table tbody tr:nth-child(even) {
+  @apply bg-slate-50/30;
 }
 
 .data-table tbody tr:hover {
-  @apply bg-slate-50/50;
+  @apply bg-slate-50 transition-colors;
+}
+
+/* Inputs e Forms */
+.form-input {
+  @apply bg-white border-slate-300 focus:border-blue-600 focus:ring-blue-600;
+}
+
+.form-label {
+  @apply text-slate-700 font-medium text-sm;
+}
+
+/* Botões Primários - Azul Corporativo */
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 text-white;
+}
+
+/* Cards Clean */
+.card-clean {
+  @apply bg-white border border-slate-200 shadow-sm;
+}
+
+/* Modais */
+.modal-clean {
+  @apply bg-white;
+}
+
+.modal-title {
+  @apply text-2xl font-bold;
+  color: #0F172A;
+  font-family: 'Karla', sans-serif;
 }

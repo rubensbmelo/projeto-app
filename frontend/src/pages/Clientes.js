@@ -131,27 +131,30 @@ const Clientes = () => {
               Novo Cliente
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-3xl bg-white">
             <DialogHeader>
-              <DialogTitle>{editingCliente ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
+              <DialogTitle className="text-2xl font-bold" style={{ color: '#0f172a', fontFamily: 'Karla, sans-serif' }}>
+                {editingCliente ? 'Editar Cliente' : 'Novo Cliente'}
+              </DialogTitle>
               {!editingCliente && (
-                <p className="text-sm text-slate-500 mt-1">A referência será gerada automaticamente (CLI-0001, CLI-0002...)</p>
+                <p className="text-sm text-slate-500 mt-2">A referência será gerada automaticamente (CLI-0001, CLI-0002...)</p>
               )}
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5 mt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="nome">Nome / Razão Social</Label>
+                  <Label htmlFor="nome" className="text-slate-700 font-medium">Nome / Razão Social</Label>
                   <Input
                     id="nome"
                     data-testid="input-nome"
                     value={formData.nome}
                     onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                     required
+                    className="mt-1 bg-white border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="cnpj">CNPJ</Label>
+                  <Label htmlFor="cnpj" className="text-slate-700 font-medium">CNPJ</Label>
                   <Input
                     id="cnpj"
                     data-testid="input-cnpj"
@@ -159,11 +162,12 @@ const Clientes = () => {
                     onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
                     required
                     placeholder="00.000.000/0000-00"
+                    className="mt-1 bg-white border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                   />
                 </div>
               </div>
               <div>
-                <Label htmlFor="comprador">Comprador (Responsável)</Label>
+                <Label htmlFor="comprador" className="text-slate-700 font-medium">Comprador (Responsável)</Label>
                 <Input
                   id="comprador"
                   data-testid="input-comprador"
@@ -171,31 +175,34 @@ const Clientes = () => {
                   onChange={(e) => setFormData({ ...formData, comprador: e.target.value })}
                   required
                   placeholder="Nome do responsável pelas compras"
+                  className="mt-1 bg-white border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                 />
               </div>
               <div>
-                <Label htmlFor="endereco">Endereço</Label>
+                <Label htmlFor="endereco" className="text-slate-700 font-medium">Endereço</Label>
                 <Input
                   id="endereco"
                   data-testid="input-endereco"
                   value={formData.endereco}
                   onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
                   required
+                  className="mt-1 bg-white border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="cidade">Cidade</Label>
+                  <Label htmlFor="cidade" className="text-slate-700 font-medium">Cidade</Label>
                   <Input
                     id="cidade"
                     data-testid="input-cidade"
                     value={formData.cidade}
                     onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
                     required
+                    className="mt-1 bg-white border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="estado">Estado</Label>
+                  <Label htmlFor="estado" className="text-slate-700 font-medium">Estado</Label>
                   <Input
                     id="estado"
                     data-testid="input-estado"
@@ -204,12 +211,13 @@ const Clientes = () => {
                     required
                     placeholder="Ex: SP"
                     maxLength={2}
+                    className="mt-1 bg-white border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="email">E-mail</Label>
+                  <Label htmlFor="email" className="text-slate-700 font-medium">E-mail</Label>
                   <Input
                     id="email"
                     data-testid="input-email"
@@ -217,21 +225,23 @@ const Clientes = () => {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="contato@email.com"
+                    className="mt-1 bg-white border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="telefone">Telefone</Label>
+                  <Label htmlFor="telefone" className="text-slate-700 font-medium">Telefone</Label>
                   <Input
                     id="telefone"
                     data-testid="input-telefone"
                     value={formData.telefone}
                     onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
                     placeholder="(00) 00000-0000"
+                    className="mt-1 bg-white border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                   />
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-slate-300">
                   Cancelar
                 </Button>
                 <Button data-testid="submit-cliente-button" type="submit" className="bg-slate-900 hover:bg-slate-800">
@@ -243,7 +253,7 @@ const Clientes = () => {
         </Dialog>
       </div>
 
-      {/* Search Bar */}
+      {/* Search Bar - Fundo Branco */}
       <Card className="p-4 mb-6 bg-white border border-slate-200 shadow-sm">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
@@ -252,66 +262,71 @@ const Clientes = () => {
             placeholder="Buscar por nome, referência, CNPJ ou comprador..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 border-slate-200 focus:border-slate-400 focus:ring-slate-400"
+            className="pl-10 bg-white border-slate-300 focus:border-slate-900 focus:ring-slate-900"
           />
         </div>
       </Card>
 
-      {/* Table */}
-      <Card className="bg-white border border-slate-200 shadow-sm">
+      {/* Table com Efeito Zebra */}
+      <Card className="bg-white border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="data-table" data-testid="clientes-table">\n            <thead className="bg-slate-50">
+          <table className="w-full" data-testid="clientes-table">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th>Referência</th>
-                <th>Nome / Razão Social</th>
-                <th>CNPJ</th>
-                <th>Cidade/Estado</th>
-                <th>Comprador</th>
-                <th>E-mail</th>
-                <th>Telefone</th>
-                <th className="text-center">Ações</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Referência</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome / Razão Social</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">CNPJ</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Cidade/Estado</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Comprador</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">E-mail</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Telefone</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="text-center py-8 text-slate-500">
+                  <td colSpan="8" className="px-4 py-8 text-center text-slate-500">
                     Carregando...
                   </td>
                 </tr>
               ) : filteredClientes.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="text-center py-8 text-slate-500">
+                  <td colSpan="8" className="px-4 py-8 text-center text-slate-500">
                     Nenhum cliente encontrado
                   </td>
                 </tr>
               ) : (
-                filteredClientes.map((cliente) => (
-                  <tr key={cliente.id} data-testid={`cliente-row-${cliente.id}`}>
-                    <td className="font-mono font-semibold text-slate-900">{cliente.referencia}</td>
-                    <td className="font-medium">{cliente.nome}</td>
-                    <td className="font-mono text-slate-600 text-xs">{cliente.cnpj}</td>
-                    <td className="text-slate-600 text-sm">{cliente.cidade} - {cliente.estado}</td>
-                    <td className="text-slate-700 font-medium">{cliente.comprador || '-'}</td>
-                    <td className="text-slate-600 text-sm">{cliente.email || '-'}</td>
-                    <td className="text-slate-600 text-sm font-mono">{cliente.telefone || '-'}</td>
-                    <td className="text-center">
+                filteredClientes.map((cliente, index) => (
+                  <tr 
+                    key={cliente.id} 
+                    data-testid={`cliente-row-${cliente.id}`}
+                    className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-slate-50 transition-colors`}
+                  >
+                    <td className="px-4 py-3 font-mono font-semibold text-slate-900 text-sm">{cliente.referencia}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900 text-sm">{cliente.nome}</td>
+                    <td className="px-4 py-3 font-mono text-slate-600 text-xs">{cliente.cnpj}</td>
+                    <td className="px-4 py-3 text-slate-600 text-sm">{cliente.cidade} - {cliente.estado}</td>
+                    <td className="px-4 py-3 text-slate-700 font-medium text-sm">{cliente.comprador || '-'}</td>
+                    <td className="px-4 py-3 text-slate-600 text-sm">{cliente.email || '-'}</td>
+                    <td className="px-4 py-3 text-slate-600 text-sm font-mono">{cliente.telefone || '-'}</td>
+                    <td className="px-4 py-3 text-center">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0"
+                            className="h-8 w-8 p-0 hover:bg-slate-100"
                             data-testid={`menu-cliente-${cliente.id}`}
                           >
                             <MoreVertical size={16} className="text-slate-500" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" className="bg-white">
                           <DropdownMenuItem
                             onClick={() => handleEdit(cliente)}
                             data-testid={`edit-cliente-${cliente.id}`}
-                            className="cursor-pointer"
+                            className="cursor-pointer hover:bg-slate-50"
                           >
                             <Edit size={14} className="mr-2" />
                             Editar
@@ -319,7 +334,7 @@ const Clientes = () => {
                           <DropdownMenuItem
                             onClick={() => handleDelete(cliente.id)}
                             data-testid={`delete-cliente-${cliente.id}`}
-                            className="cursor-pointer text-red-600"
+                            className="cursor-pointer text-red-600 hover:bg-red-50"
                           >
                             <Trash2 size={14} className="mr-2" />
                             Excluir

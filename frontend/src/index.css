@@ -9,6 +9,7 @@ body {
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #F8FAFC;
 }
 
 code {
@@ -31,7 +32,7 @@ h1, h2, h3, h4, h5, h6 {
     --card-foreground: 15 23 42;
     --popover: 255 255 255;
     --popover-foreground: 15 23 42;
-    --primary: 15 23 42;
+    --primary: 37 99 235;
     --primary-foreground: 248 250 252;
     --secondary: 241 245 249;
     --secondary-foreground: 15 23 42;
@@ -43,7 +44,7 @@ h1, h2, h3, h4, h5, h6 {
     --destructive-foreground: 248 250 252;
     --border: 226 232 240;
     --input: 226 232 240;
-    --ring: 15 23 42;
+    --ring: 37 99 235;
     --radius: 0.5rem;
   }
 }

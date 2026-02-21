@@ -65,12 +65,12 @@ const Clientes = () => {
   const handleEdit = (cliente) => {
     setEditingCliente(cliente);
     setFormData({
-      referencia: cliente.referencia,
       nome: cliente.nome,
       cnpj: cliente.cnpj,
       endereco: cliente.endereco,
       cidade: cliente.cidade,
       estado: cliente.estado,
+      comprador: cliente.comprador || '',
       telefone: cliente.telefone || '',
       email: cliente.email || ''
     });

@@ -43,7 +43,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-slate-50">
       {/* Left Side - Image/Background */}
       <div 
         className="hidden lg:flex lg:w-1/2 bg-cover bg-center relative"
@@ -53,7 +53,7 @@ const Login = () => {
       >
         <div className="absolute inset-0 bg-slate-900/70" />
         <div className="relative z-10 flex flex-col justify-center px-12 text-white">
-          <h1 className="text-5xl font-bold mb-4" style={{ fontFamily: 'Karla, sans-serif' }}>
+          <h1 className="text-5xl font-bold mb-4" style={{ fontFamily: 'Karla, sans-serif', color: '#FFFFFF' }}>
             ERP Sistema
           </h1>
           <p className="text-xl text-slate-200">
@@ -77,10 +77,10 @@ const Login = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {isRegister && (
               <div>
-                <Label htmlFor="nome">Nome Completo</Label>
+                <Label htmlFor="nome" className="text-slate-700 font-medium">Nome Completo</Label>
                 <Input
                   id="nome"
                   data-testid="input-nome"
@@ -89,13 +89,13 @@ const Login = () => {
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                   required
-                  className="mt-1"
+                  className="mt-1 bg-white border-slate-300 focus:border-blue-600 focus:ring-blue-600"
                 />
               </div>
             )}
 
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-slate-700 font-medium">Email</Label>
               <Input
                 id="email"
                 data-testid="input-email"
@@ -104,12 +104,12 @@ const Login = () => {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
-                className="mt-1"
+                className="mt-1 bg-white border-slate-300 focus:border-blue-600 focus:ring-blue-600"
               />
             </div>
 
             <div>
-              <Label htmlFor="password">Senha</Label>
+              <Label htmlFor="password" className="text-slate-700 font-medium">Senha</Label>
               <Input
                 id="password"
                 data-testid="input-password"
@@ -118,14 +118,14 @@ const Login = () => {
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
-                className="mt-1"
+                className="mt-1 bg-white border-slate-300 focus:border-blue-600 focus:ring-blue-600"
               />
             </div>
 
             <Button
               data-testid="submit-button"
               type="submit"
-              className="w-full bg-slate-900 hover:bg-slate-800"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-3"
               disabled={loading}
             >
               {loading ? 'Processando...' : (isRegister ? 'Criar Conta' : 'Entrar')}
@@ -137,7 +137,7 @@ const Login = () => {
               data-testid="toggle-auth-mode"
               type="button"
               onClick={() => setIsRegister(!isRegister)}
-              className="text-sm text-slate-600 hover:text-slate-900"
+              className="text-sm text-slate-600 hover:text-blue-600 transition-colors"
             >
               {isRegister ? 'Já tem uma conta? Faça login' : 'Não tem conta? Cadastre-se'}
             </button>

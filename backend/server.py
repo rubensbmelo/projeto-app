@@ -630,32 +630,55 @@ async def atualizar_vencimento(vencimento_id: str, venc_data: VencimentoUpdate, 
 
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
-    # Comissão prevista (pedidos implantados)
-    pedidos_implantados = await db.pedidos.find({"status": "Implantado"}, {"_id": 0}).to_list(1000)
+    # Get current month range
+    now = datetime.now(timezone.utc)
+    first_day_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Tonelagem de pedidos implantados no mês atual (KG -> TON)
+    pedidos_implantados = await db.pedidos.find({
+        "status": "Implantado",
+        "data_criacao": {"$gte": first_day_of_month.isoformat()}
+    }, {"_id": 0}).to_list(1000)
+    
+    tonelagem_implantada = 0
     comissao_prevista = 0
     
     for pedido in pedidos_implantados:
+        tonelagem_implantada += pedido["peso_total"] / 1000  # Convert KG to TON
         for item in pedido["itens"]:
             material = await db.materiais.find_one({"id": item["material_id"]}, {"_id": 0})
             if material:
                 comissao_prevista += item["subtotal"] * (material["porcentagem_comissao"] / 100)
     
+    # Tonelagem faturada (notas fiscais do mês)
+    notas_mes = await db.notas_fiscais.find({
+        "data_emissao": {"$gte": first_day_of_month.isoformat()}
+    }, {"_id": 0}).to_list(1000)
+    
+    tonelagem_faturada = 0
+    for nota in notas_mes:
+        pedido = await db.pedidos.find_one({"id": nota["pedido_id"]}, {"_id": 0})
+        if pedido:
+            tonelagem_faturada += pedido["peso_total"] / 1000  # Convert KG to TON
+    
     # Comissão realizada (vencimentos pagos)
     vencimentos_pagos = await db.vencimentos.find({"status": "Pago"}, {"_id": 0}).to_list(1000)
     comissao_realizada = sum(v["comissao_calculada"] for v in vencimentos_pagos)
     
-    # Stats
+    # Stats gerais
     total_pedidos = await db.pedidos.count_documents({})
     count_implantados = await db.pedidos.count_documents({"status": "Implantado"})
-    notas_mes = await db.notas_fiscais.count_documents({})
+    notas_fiscais_mes = len(notas_mes)
     venc_pendentes = await db.vencimentos.count_documents({"status": "Pendente"})
     
     return DashboardStats(
+        tonelagem_implantada=tonelagem_implantada,
         comissao_prevista=comissao_prevista,
+        tonelagem_faturada=tonelagem_faturada,
         comissao_realizada=comissao_realizada,
         total_pedidos=total_pedidos,
         pedidos_implantados=count_implantados,
-        notas_fiscais_mes=notas_mes,
+        notas_fiscais_mes=notas_fiscais_mes,
         vencimentos_pendentes=venc_pendentes
     )
 

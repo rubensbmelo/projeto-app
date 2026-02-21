@@ -320,7 +320,11 @@ async def criar_cliente(cliente_data: ClienteCreate, current_user: dict = Depend
 @api_router.put("/clientes/{cliente_id}", response_model=Cliente)
 async def atualizar_cliente(cliente_id: str, cliente_data: ClienteCreate, current_user: dict = Depends(get_current_user)):
     doc = cliente_data.model_dump()
-    result = await db.clientes.update_one({"id": cliente_id}, {"$set": doc})
+    result = await db.clientes.update_one({
+        "id": cliente_id
+    }, {
+        "$set": doc
+    })
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
     

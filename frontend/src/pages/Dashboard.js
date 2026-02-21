@@ -44,52 +44,48 @@ const Dashboard = () => {
 
   const statCards = [
     {
-      title: 'Comissão Prevista',
-      value: formatCurrency(stats.comissao_prevista),
-      icon: TrendingUp,
-      color: 'bg-blue-100 text-blue-800',
-      iconBg: 'bg-blue-500',
-      description: 'Pedidos implantados'
-    },
-    {
-      title: 'Comissão Realizada',
-      value: formatCurrency(stats.comissao_realizada),
-      icon: DollarSign,
-      color: 'bg-green-100 text-green-800',
-      iconBg: 'bg-green-500',
-      description: 'Vencimentos pagos'
-    },
-    {
-      title: 'Total de Pedidos',
-      value: stats.total_pedidos,
+      title: 'Pedidos do Mês',
+      value: formatCurrency(stats.pedidos_mes_valor),
       icon: FileText,
-      color: 'bg-slate-100 text-slate-800',
-      iconBg: 'bg-slate-500',
-      description: 'Todos os pedidos'
+      color: 'text-slate-700',
+      bgColor: 'bg-white',
+      borderColor: 'border-slate-200',
+      iconBg: 'bg-slate-100',
+      iconColor: 'text-slate-600',
+      description: 'Valor total de pedidos criados no mês'
     },
     {
-      title: 'Pedidos Implantados',
-      value: stats.pedidos_implantados,
-      icon: TrendingDown,
-      color: 'bg-blue-100 text-blue-800',
-      iconBg: 'bg-blue-500',
-      description: 'Aguardando faturamento'
-    },
-    {
-      title: 'Notas Fiscais',
-      value: stats.notas_fiscais_mes,
+      title: 'Faturado no Mês',
+      value: formatCurrency(stats.faturado_mes_valor),
       icon: Receipt,
-      color: 'bg-purple-100 text-purple-800',
-      iconBg: 'bg-purple-500',
-      description: 'Total emitidas'
+      color: 'text-slate-700',
+      bgColor: 'bg-white',
+      borderColor: 'border-slate-200',
+      iconBg: 'bg-slate-100',
+      iconColor: 'text-slate-600',
+      description: 'Valor de notas fiscais emitidas no mês'
     },
     {
-      title: 'Vencimentos Pendentes',
-      value: stats.vencimentos_pendentes,
+      title: 'Comissão do Mês',
+      value: formatCurrency(stats.comissao_mes),
+      icon: DollarSign,
+      color: 'text-slate-700',
+      bgColor: 'bg-white',
+      borderColor: 'border-slate-200',
+      iconBg: 'bg-green-100',
+      iconColor: 'text-green-600',
+      description: 'Comissões com vencimento no mês atual'
+    },
+    {
+      title: 'Comissões a Receber',
+      value: formatCurrency(stats.comissoes_a_receber),
       icon: Clock,
-      color: 'bg-yellow-100 text-yellow-800',
-      iconBg: 'bg-yellow-500',
-      description: 'Aguardando pagamento'
+      color: 'text-slate-700',
+      bgColor: 'bg-white',
+      borderColor: 'border-slate-200',
+      iconBg: 'bg-blue-100',
+      iconColor: 'text-blue-600',
+      description: 'Total de comissões pendentes (global)'
     }
   ];
 

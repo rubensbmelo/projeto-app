@@ -149,20 +149,30 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Grid de Estatísticas */}
+      {/* Grid de Estatísticas - Design Clean Enterprise */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.slice(2).map((stat, index) => {
+        {statCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <Card key={index} className="p-6 hover:shadow-md transition-shadow" data-testid={`stat-card-${index}`}>
+            <Card 
+              key={index} 
+              className={`p-5 ${stat.bgColor} border ${stat.borderColor} shadow-sm hover:shadow-md transition-shadow`}
+              data-testid={`stat-card-${index}`}
+            >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-sm text-slate-500 uppercase tracking-wider font-semibold">{stat.title}</p>
-                  <h3 className="text-3xl font-bold text-slate-900 mt-2 font-mono">{stat.value}</h3>
-                  <p className="text-xs text-slate-500 mt-2">{stat.description}</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">
+                    {stat.title}
+                  </p>
+                  <h3 className={`text-2xl font-bold ${stat.color} font-mono`}>
+                    {stat.value}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-2">
+                    {stat.description}
+                  </p>
                 </div>
-                <div className={`w-12 h-12 rounded-md ${stat.iconBg} flex items-center justify-center flex-shrink-0`}>
-                  <Icon size={24} className="text-white" strokeWidth={2} />
+                <div className={`w-10 h-10 rounded-md ${stat.iconBg} flex items-center justify-center flex-shrink-0 ml-3`}>
+                  <Icon size={20} className={stat.iconColor} strokeWidth={2} />
                 </div>
               </div>
             </Card>

@@ -29,7 +29,7 @@
 }
 
 .status-badge-pendente {
-  @apply bg-orange-100 text-orange-700 border-orange-300;
+  @apply bg-slate-100 text-slate-700 border-slate-300;
 }
 
 .status-badge-atrasado {

@@ -74,12 +74,13 @@ class Token(BaseModel):
 class Cliente(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    referencia: str
+    referencia: str  # Auto-generated: CLI-0001, CLI-0002, etc
     nome: str
     cnpj: str
     endereco: str
     cidade: str
     estado: str
+    comprador: str  # Nome do responsável pelas compras
     telefone: Optional[str] = None
     email: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

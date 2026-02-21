@@ -177,16 +177,16 @@ const Dashboard = () => {
       {/* Info Section */}
       <Card className="mt-6 p-6 bg-slate-50 border-slate-200">
         <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: 'Karla, sans-serif' }}>
-          Sobre o Cockpit de Comissões
+          Sobre as Métricas de Performance
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
           <div>
-            <p className="font-medium text-blue-700 mb-1">• Comissão Prevista</p>
-            <p className="text-slate-600">Calculada automaticamente sobre pedidos com status "Implantado", baseada no segmento do material e porcentagem de comissão configurada.</p>
+            <p className="font-medium text-blue-700 mb-1">• Pedidos Implantados (TON)</p>
+            <p className="text-slate-600">Soma do peso total (em toneladas) de todos os pedidos com status "Implantado" no mês atual. Conversão automática: KG ÷ 1000 = TON. A comissão prevista é calculada sobre o valor faturado baseado no segmento do material.</p>
           </div>
           <div>
-            <p className="font-medium text-green-700 mb-1">• Comissão Realizada</p>
-            <p className="text-slate-600">Soma das comissões de vencimentos com status "Pago". Atualizada conforme parcelas são liquidadas.</p>
+            <p className="font-medium text-green-700 mb-1">• Pedidos Faturados (TON)</p>
+            <p className="text-slate-600">Soma do peso (em toneladas) das Notas Fiscais emitidas no mês atual. A comissão realizada representa a soma das comissões de vencimentos já pagos, independente do mês de emissão.</p>
           </div>
         </div>
       </Card>

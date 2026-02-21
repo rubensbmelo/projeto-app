@@ -17,12 +17,12 @@ const Clientes = () => {
   const [editingCliente, setEditingCliente] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
-    referencia: '',
     nome: '',
     cnpj: '',
     endereco: '',
     cidade: '',
     estado: '',
+    comprador: '',
     telefone: '',
     email: ''
   });

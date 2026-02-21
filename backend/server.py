@@ -634,6 +634,12 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
     first_day_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
+    # Last day of current month
+    if now.month == 12:
+        last_day_of_month = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        last_day_of_month = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    
     # Tonelagem de pedidos implantados no mês atual (KG -> TON)
     pedidos_implantados = await db.pedidos.find({
         "status": "Implantado",
@@ -665,21 +671,39 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     vencimentos_pagos = await db.vencimentos.find({"status": "Pago"}, {"_id": 0}).to_list(1000)
     comissao_realizada = sum(v["comissao_calculada"] for v in vencimentos_pagos)
     
-    # Stats gerais
-    total_pedidos = await db.pedidos.count_documents({})
-    count_implantados = await db.pedidos.count_documents({"status": "Implantado"})
-    notas_fiscais_mes = len(notas_mes)
-    venc_pendentes = await db.vencimentos.count_documents({"status": "Pendente"})
+    # CARD 1: Pedidos do Mês (R$) - Valor total de pedidos criados no mês
+    pedidos_mes = await db.pedidos.find({
+        "data_criacao": {"$gte": first_day_of_month.isoformat()}
+    }, {"_id": 0}).to_list(1000)
+    pedidos_mes_valor = sum(p["valor_total"] for p in pedidos_mes)
+    
+    # CARD 2: Faturado no Mês (R$) - Valor total de NFs emitidas no mês
+    faturado_mes_valor = sum(nota["valor_total"] for nota in notas_mes)
+    
+    # CARD 3: Comissão do Mês (R$) - Comissões com vencimento no mês atual
+    vencimentos_mes = await db.vencimentos.find({
+        "data_vencimento": {
+            "$gte": first_day_of_month.isoformat(),
+            "$lt": last_day_of_month.isoformat()
+        }
+    }, {"_id": 0}).to_list(1000)
+    comissao_mes = sum(v["comissao_calculada"] for v in vencimentos_mes)
+    
+    # CARD 4: Comissões a Receber (R$) - Total de comissões pendentes (global)
+    vencimentos_pendentes = await db.vencimentos.find({
+        "status": {"$in": ["Pendente", "Atrasado"]}
+    }, {"_id": 0}).to_list(1000)
+    comissoes_a_receber = sum(v["comissao_calculada"] for v in vencimentos_pendentes)
     
     return DashboardStats(
         tonelagem_implantada=tonelagem_implantada,
         comissao_prevista=comissao_prevista,
         tonelagem_faturada=tonelagem_faturada,
         comissao_realizada=comissao_realizada,
-        total_pedidos=total_pedidos,
-        pedidos_implantados=count_implantados,
-        notas_fiscais_mes=notas_fiscais_mes,
-        vencimentos_pendentes=venc_pendentes
+        pedidos_mes_valor=pedidos_mes_valor,
+        faturado_mes_valor=faturado_mes_valor,
+        comissao_mes=comissao_mes,
+        comissoes_a_receber=comissoes_a_receber
     )
 
 # ============= EXPORT EXCEL =============

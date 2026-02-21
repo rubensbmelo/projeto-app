@@ -107,7 +107,8 @@ const Clientes = () => {
   const filteredClientes = clientes.filter(cliente =>
     cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cliente.referencia.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cliente.cnpj.includes(searchTerm)
+    cliente.cnpj.includes(searchTerm) ||
+    (cliente.comprador && cliente.comprador.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (

@@ -244,7 +244,7 @@ const Clientes = () => {
       </div>
 
       {/* Search Bar */}
-      <Card className="p-4 mb-6 bg-white border-slate-200">
+      <Card className="p-4 mb-6 bg-white border border-slate-200 shadow-sm">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
           <Input
@@ -252,7 +252,7 @@ const Clientes = () => {
             placeholder="Buscar por nome, referência, CNPJ ou comprador..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 border-slate-200 focus:border-slate-400 focus:ring-slate-400"
           />
         </div>
       </Card>

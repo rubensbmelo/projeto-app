@@ -86,12 +86,12 @@ class Cliente(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ClienteCreate(BaseModel):
-    referencia: str
     nome: str
     cnpj: str
     endereco: str
     cidade: str
     estado: str
+    comprador: str
     telefone: Optional[str] = None
     email: Optional[str] = None
 

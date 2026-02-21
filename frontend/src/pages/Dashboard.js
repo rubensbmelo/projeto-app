@@ -112,14 +112,19 @@ const Dashboard = () => {
 
       {/* Cockpit de Comissões - Destaque Principal */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <Card className="p-6 border border-blue-200 bg-blue-50" data-testid="comissao-prevista-card">
+        <Card className="p-6 border border-blue-200 bg-blue-50" data-testid="tonelagem-implantada-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-blue-600 uppercase tracking-wider">Comissão Prevista</p>
-              <h3 className="text-4xl font-bold text-blue-900 mt-2 font-mono">
-                {formatCurrency(stats.comissao_prevista)}
+              <p className="text-sm font-medium text-blue-600 uppercase tracking-wider">Pedidos Implantados (TON)</p>
+              <h3 className="text-5xl font-bold text-blue-900 mt-2 font-mono">
+                {stats.tonelagem_implantada.toFixed(3)} TON
               </h3>
-              <p className="text-sm text-blue-700 mt-2">Pedidos implantados aguardando faturamento</p>
+              <p className="text-sm text-blue-700 mt-3 font-medium">
+                Comissão Prevista: {formatCurrency(stats.comissao_prevista)}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                Peso total de pedidos implantados no mês atual
+              </p>
             </div>
             <div className="w-16 h-16 rounded-full bg-blue-500 flex items-center justify-center">
               <TrendingUp size={32} className="text-white" strokeWidth={2} />
@@ -127,14 +132,19 @@ const Dashboard = () => {
           </div>
         </Card>
 
-        <Card className="p-6 border border-green-200 bg-green-50" data-testid="comissao-realizada-card">
+        <Card className="p-6 border border-green-200 bg-green-50" data-testid="tonelagem-faturada-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-green-600 uppercase tracking-wider">Comissão Realizada</p>
-              <h3 className="text-4xl font-bold text-green-900 mt-2 font-mono">
-                {formatCurrency(stats.comissao_realizada)}
+              <p className="text-sm font-medium text-green-600 uppercase tracking-wider">Pedidos Faturados (TON)</p>
+              <h3 className="text-5xl font-bold text-green-900 mt-2 font-mono">
+                {stats.tonelagem_faturada.toFixed(3)} TON
               </h3>
-              <p className="text-sm text-green-700 mt-2">Vencimentos pagos até o momento</p>
+              <p className="text-sm text-green-700 mt-3 font-medium">
+                Comissão Realizada: {formatCurrency(stats.comissao_realizada)}
+              </p>
+              <p className="text-xs text-green-600 mt-1">
+                Peso total de notas fiscais emitidas no mês
+              </p>
             </div>
             <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center">
               <DollarSign size={32} className="text-white" strokeWidth={2} />

@@ -160,7 +160,9 @@ class NotaFiscalCreate(BaseModel):
     pedido_id: str
     valor_total: float
     numero_parcelas: int
-    data_primeira_parcela: str  # DD/MM/YYYY
+    data_vencimento_parcela_1: str  # DD/MM/YYYY
+    data_vencimento_parcela_2: Optional[str] = None  # DD/MM/YYYY
+    data_vencimento_parcela_3: Optional[str] = None  # DD/MM/YYYY
 
 class Vencimento(BaseModel):
     model_config = ConfigDict(extra="ignore")

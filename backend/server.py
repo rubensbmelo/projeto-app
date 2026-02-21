@@ -181,10 +181,10 @@ class DashboardStats(BaseModel):
     comissao_prevista: float
     tonelagem_faturada: float  # TON de notas fiscais do mês
     comissao_realizada: float
-    total_pedidos: int
-    pedidos_implantados: int
-    notas_fiscais_mes: int
-    vencimentos_pendentes: int
+    pedidos_mes_valor: float  # Valor R$ de pedidos criados no mês
+    faturado_mes_valor: float  # Valor R$ de NFs emitidas no mês
+    comissao_mes: float  # Comissões com vencimento no mês atual
+    comissoes_a_receber: float  # Total de comissões pendentes (global)
 
 # ============= HELPER FUNCTIONS =============
 

@@ -297,7 +297,21 @@ async def listar_clientes(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/clientes", response_model=Cliente)
 async def criar_cliente(cliente_data: ClienteCreate, current_user: dict = Depends(get_current_user)):
-    cliente = Cliente(**cliente_data.model_dump())
+    # Generate automatic sequential reference
+    ultimo_cliente = await db.clientes.find_one({}, {"_id": 0}, sort=[("created_at", -1)])
+    if ultimo_cliente and ultimo_cliente.get("referencia"):
+        # Extract number from last reference (CLI-0001 -> 1)
+        try:
+            last_num = int(ultimo_cliente["referencia"].split("-")[1])
+            new_num = last_num + 1
+        except:
+            new_num = 1
+    else:
+        new_num = 1
+    
+    referencia = f"CLI-{new_num:04d}"  # CLI-0001, CLI-0002, etc
+    
+    cliente = Cliente(referencia=referencia, **cliente_data.model_dump())
     doc = cliente.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.clientes.insert_one(doc)

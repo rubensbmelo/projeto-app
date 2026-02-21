@@ -92,12 +92,12 @@ const Clientes = () => {
 
   const resetForm = () => {
     setFormData({
-      referencia: '',
       nome: '',
       cnpj: '',
       endereco: '',
       cidade: '',
       estado: '',
+      comprador: '',
       telefone: '',
       email: ''
     });

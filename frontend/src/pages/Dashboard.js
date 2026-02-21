@@ -12,10 +12,10 @@ const Dashboard = () => {
     comissao_prevista: 0,
     tonelagem_faturada: 0,
     comissao_realizada: 0,
-    total_pedidos: 0,
-    pedidos_implantados: 0,
-    notas_fiscais_mes: 0,
-    vencimentos_pendentes: 0
+    pedidos_mes_valor: 0,
+    faturado_mes_valor: 0,
+    comissao_mes: 0,
+    comissoes_a_receber: 0
   });
   const [loading, setLoading] = useState(true);
 

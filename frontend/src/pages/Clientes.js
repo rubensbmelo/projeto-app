@@ -258,10 +258,9 @@ const Clientes = () => {
       </Card>
 
       {/* Table */}
-      <Card className="bg-white border-slate-200">
+      <Card className="bg-white border border-slate-200 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="data-table" data-testid="clientes-table">
-            <thead>
+          <table className="data-table" data-testid="clientes-table">\n            <thead className="bg-slate-50">
               <tr>
                 <th>Referência</th>
                 <th>Nome / Razão Social</th>

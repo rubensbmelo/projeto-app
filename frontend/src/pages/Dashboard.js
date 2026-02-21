@@ -8,7 +8,9 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
+    tonelagem_implantada: 0,
     comissao_prevista: 0,
+    tonelagem_faturada: 0,
     comissao_realizada: 0,
     total_pedidos: 0,
     pedidos_implantados: 0,

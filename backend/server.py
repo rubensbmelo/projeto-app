@@ -177,7 +177,9 @@ class VencimentoUpdate(BaseModel):
     data_pagamento: Optional[str] = None  # DD/MM/YYYY
 
 class DashboardStats(BaseModel):
+    tonelagem_implantada: float  # TON de pedidos implantados no mês
     comissao_prevista: float
+    tonelagem_faturada: float  # TON de notas fiscais do mês
     comissao_realizada: float
     total_pedidos: int
     pedidos_implantados: int

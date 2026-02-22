@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
-import { FileDown } from 'lucide-react';
+import { FileDown, DollarSign, Clock, AlertCircle, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -31,8 +31,7 @@ const Comissoes = () => {
       setPedidos(pedidosRes.data);
       setClientes(clientesRes.data);
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      toast.error('Erro ao carregar dados');
+      toast.error('Erro ao carregar relatório financeiro');
     } finally {
       setLoading(false);
     }
@@ -40,23 +39,17 @@ const Comissoes = () => {
 
   const handleExportExcel = async () => {
     try {
-      const response = await axios.get(`${API}/export/comissoes`, {
-        responseType: 'blob'
-      });
-      
+      const response = await axios.get(`${API}/export/comissoes`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'comissoes.xlsx');
+      link.setAttribute('download', `relatorio_comissoes_${new Date().getMonth()+1}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('Excel exportado com sucesso!');
+      toast.success('Relatório exportado!');
     } catch (error) {
-      console.error('Erro ao exportar Excel:', error);
-      toast.error('Erro ao exportar Excel');
+      toast.error('Erro ao gerar Excel');
     }
   };
 
@@ -69,217 +62,157 @@ const Comissoes = () => {
 
   const getPedidoOC = (pedidoId) => {
     const pedido = pedidos.find(p => p.id === pedidoId);
-    return pedido ? pedido.numero_oc : 'N/A';
+    return pedido ? pedido.numero_oc : '---';
   };
 
+  // Agrupamento e Totais
+  const totalComissaoPaga = vencimentos.filter(v => v.status === 'Pago').reduce((sum, v) => sum + v.comissao_calculada, 0);
+  const totalComissaoPendente = vencimentos.filter(v => v.status === 'Pendente').reduce((sum, v) => sum + v.comissao_calculada, 0);
+  const totalComissaoAtrasada = vencimentos.filter(v => v.status === 'Atrasado').reduce((sum, v) => sum + v.comissao_calculada, 0);
+
   const comissoesPorStatus = vencimentos.reduce((acc, venc) => {
-    if (!acc[venc.status]) {
-      acc[venc.status] = [];
-    }
     const nota = notas.find(n => n.id === venc.nota_fiscal_id);
     if (nota) {
-      acc[venc.status].push({
-        ...venc,
-        nota,
-        pedidoId: nota.pedido_id
-      });
+      if (!acc[venc.status]) acc[venc.status] = [];
+      acc[venc.status].push({ ...venc, nota, pedidoId: nota.pedido_id });
     }
     return acc;
   }, {});
 
-  const totalComissaoPaga = vencimentos
-    .filter(v => v.status === 'Pago')
-    .reduce((sum, v) => sum + v.comissao_calculada, 0);
-
-  const totalComissaoPendente = vencimentos
-    .filter(v => v.status === 'Pendente')
-    .reduce((sum, v) => sum + v.comissao_calculada, 0);
-
-  const totalComissaoAtrasada = vencimentos
-    .filter(v => v.status === 'Atrasado')
-    .reduce((sum, v) => sum + v.comissao_calculada, 0);
-
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-6 bg-slate-50 min-h-screen">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: 'Karla, sans-serif' }}>
-            Comissões
-          </h1>
-          <p className="text-slate-600 mt-1">Relatório detalhado de comissões</p>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Comissões</h1>
+          <p className="text-slate-500 font-medium">Fluxo de caixa e recebíveis por período</p>
         </div>
-        <Button
-          data-testid="export-comissoes-button"
-          onClick={handleExportExcel}
-          className="bg-slate-900 hover:bg-slate-800"
-        >
-          <FileDown size={16} className="mr-2" />
-          Exportar Excel
+        <Button onClick={handleExportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all">
+          <FileDown size={18} className="mr-2" /> Exportar para Contabilidade
         </Button>
       </div>
 
-      {/* Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <Card className="p-6 border-green-200 bg-green-50" data-testid="comissao-paga-card">
-          <div>
-            <p className="text-sm font-medium text-green-600 uppercase tracking-wider">Comissão Paga</p>
-            <h3 className="text-3xl font-bold text-green-900 mt-2 font-mono">
-              R$ {totalComissaoPaga.toFixed(2)}
-            </h3>
-            <p className="text-sm text-green-700 mt-2">
-              {vencimentos.filter(v => v.status === 'Pago').length} parcelas liquidadas
-            </p>
+      {/* Cards de Resumo Estilizados */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-l-emerald-500">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase">Total Recebido</p>
+              <h3 className="text-2xl font-bold text-emerald-600 mt-1 font-mono">R$ {totalComissaoPaga.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</h3>
+            </div>
+            <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600"><DollarSign size={20} /></div>
           </div>
         </Card>
 
-        <Card className="p-6 border-slate-200 bg-slate-50" data-testid="comissao-pendente-card">
-          <div>
-            <p className="text-sm font-medium text-slate-700 uppercase tracking-wider">Comissão Pendente</p>
-            <h3 className="text-3xl font-bold text-slate-900 mt-2 font-mono">
-              R$ {totalComissaoPendente.toFixed(2)}
-            </h3>
-            <p className="text-sm text-slate-700 mt-2">
-              {vencimentos.filter(v => v.status === 'Pendente').length} parcelas aguardando
-            </p>
+        <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-l-slate-400">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase">A Receber (Previsto)</p>
+              <h3 className="text-2xl font-bold text-slate-700 mt-1 font-mono">R$ {totalComissaoPendente.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</h3>
+            </div>
+            <div className="p-2 bg-slate-50 rounded-lg text-slate-600"><Clock size={20} /></div>
           </div>
         </Card>
 
-        <Card className="p-6 border-red-200 bg-red-50" data-testid="comissao-atrasada-card">
-          <div>
-            <p className="text-sm font-medium text-red-600 uppercase tracking-wider">Comissão Atrasada</p>
-            <h3 className="text-3xl font-bold text-red-900 mt-2 font-mono">
-              R$ {totalComissaoAtrasada.toFixed(2)}
-            </h3>
-            <p className="text-sm text-red-700 mt-2">
-              {vencimentos.filter(v => v.status === 'Atrasado').length} parcelas vencidas
-            </p>
+        <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-l-red-500">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase">Atrasado / Cobrança</p>
+              <h3 className="text-2xl font-bold text-red-600 mt-1 font-mono">R$ {totalComissaoAtrasada.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</h3>
+            </div>
+            <div className="p-2 bg-red-50 rounded-lg text-red-600"><AlertCircle size={20} /></div>
           </div>
         </Card>
       </div>
 
-      {/* Tabela Detalhada - Pagas */}
-      {comissoesPorStatus['Pago']?.length > 0 && (
-        <Card className="mb-6">
-          <div className="p-4 bg-green-50 border-b border-green-200">
-            <h3 className="font-semibold text-green-900">Comissões Pagas</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>NF</th>
-                  <th>Pedido (OC)</th>
-                  <th>Cliente</th>
-                  <th className="text-center">Parcela</th>
-                  <th>Vencimento</th>
-                  <th>Pagamento</th>
-                  <th className="text-right">Valor Parcela</th>
-                  <th className="text-right">Comissão</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comissoesPorStatus['Pago'].map(item => (
-                  <tr key={item.id}>
-                    <td className="font-mono">{item.nota.numero_nf}</td>
-                    <td className="font-mono">{getPedidoOC(item.pedidoId)}</td>
-                    <td>{getClienteNome(item.pedidoId)}</td>
-                    <td className="text-center">{item.parcela}</td>
-                    <td>{new Date(item.data_vencimento).toLocaleDateString('pt-BR')}</td>
-                    <td>{item.data_pagamento ? new Date(item.data_pagamento).toLocaleDateString('pt-BR') : '-'}</td>
-                    <td className="text-right font-mono">R$ {item.valor.toFixed(2)}</td>
-                    <td className="text-right font-mono font-medium text-green-700">R$ {item.comissao_calculada.toFixed(2)}</td>
+      {/* Listagens */}
+      <div className="space-y-8">
+        {/* Tabela Pendentes e Atrasadas (O que você precisa monitorar) */}
+        {(comissoesPorStatus['Pendente'] || comissoesPorStatus['Atrasado']) && (
+          <Card className="overflow-hidden border-none shadow-sm">
+            <div className="p-4 bg-slate-900 text-white flex items-center gap-2">
+              <TrendingUp size={18} />
+              <h3 className="font-semibold">Comissões a Conciliar (Pendentes/Atrasadas)</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b">
+                  <tr>
+                    <th className="px-6 py-4 text-left">NF</th>
+                    <th className="px-6 py-4 text-left">Cliente</th>
+                    <th className="px-6 py-4 text-center">Parcela</th>
+                    <th className="px-6 py-4 text-left">Vencimento</th>
+                    <th className="px-6 py-4 text-right">Comissão</th>
+                    <th className="px-6 py-4 text-center">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {[...(comissoesPorStatus['Atrasado'] || []), ...(comissoesPorStatus['Pendente'] || [])].map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-mono font-bold text-slate-700">{item.nota.numero_nf}</td>
+                      <td className="px-6 py-4 font-medium">{getClienteNome(item.pedidoId)}</td>
+                      <td className="px-6 py-4 text-center text-slate-500">{item.parcela}ª</td>
+                      <td className="px-6 py-4 font-medium">{new Date(item.data_vencimento).toLocaleDateString('pt-BR')}</td>
+                      <td className="px-6 py-4 text-right font-mono font-bold text-slate-900">
+                        R$ {item.comissao_calculada.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${
+                          item.status === 'Atrasado' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
 
-      {/* Tabela Detalhada - Pendentes */}
-      {comissoesPorStatus['Pendente']?.length > 0 && (
-        <Card className="mb-6">
-          <div className="p-4 bg-slate-50 border-b border-slate-200">
-            <h3 className="font-semibold text-slate-900">Comissões Pendentes</h3>
+        {/* Histórico de Pagas (Menor destaque para limpar a visão) */}
+        {comissoesPorStatus['Pago'] && (
+          <div className="opacity-80">
+            <h4 className="text-sm font-bold text-slate-400 mb-3 uppercase tracking-widest flex items-center gap-2">
+              <div className="h-px bg-slate-200 flex-1"></div> Histórico de Pagamentos <div className="h-px bg-slate-200 flex-1"></div>
+            </h4>
+            <Card className="overflow-hidden border-none shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-400 font-bold uppercase text-[10px]">
+                    <tr>
+                      <th className="px-6 py-3 text-left">NF</th>
+                      <th className="px-6 py-3 text-left">Cliente</th>
+                      <th className="px-6 py-3 text-left">Data Recebimento</th>
+                      <th className="px-6 py-3 text-right">Comissão</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 bg-white">
+                    {comissoesPorStatus['Pago'].map(item => (
+                      <tr key={item.id}>
+                        <td className="px-6 py-3 font-mono text-slate-400">{item.nota.numero_nf}</td>
+                        <td className="px-6 py-3 text-slate-500">{getClienteNome(item.pedidoId)}</td>
+                        <td className="px-6 py-3 text-slate-500">
+                          {item.data_pagamento ? new Date(item.data_pagamento).toLocaleDateString('pt-BR') : '-'}
+                        </td>
+                        <td className="px-6 py-3 text-right font-mono font-medium text-emerald-600">
+                          R$ {item.comissao_calculada.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           </div>
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>NF</th>
-                  <th>Pedido (OC)</th>
-                  <th>Cliente</th>
-                  <th className="text-center">Parcela</th>
-                  <th>Vencimento</th>
-                  <th className="text-right">Valor Parcela</th>
-                  <th className="text-right">Comissão Prevista</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comissoesPorStatus['Pendente'].map(item => (
-                  <tr key={item.id}>
-                    <td className="font-mono">{item.nota.numero_nf}</td>
-                    <td className="font-mono">{getPedidoOC(item.pedidoId)}</td>
-                    <td>{getClienteNome(item.pedidoId)}</td>
-                    <td className="text-center">{item.parcela}</td>
-                    <td>{new Date(item.data_vencimento).toLocaleDateString('pt-BR')}</td>
-                    <td className="text-right font-mono">R$ {item.valor.toFixed(2)}</td>
-                    <td className="text-right font-mono font-medium text-slate-700">R$ {item.comissao_calculada.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* Tabela Detalhada - Atrasadas */}
-      {comissoesPorStatus['Atrasado']?.length > 0 && (
-        <Card>
-          <div className="p-4 bg-red-50 border-b border-red-200">
-            <h3 className="font-semibold text-red-900">Comissões Atrasadas</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>NF</th>
-                  <th>Pedido (OC)</th>
-                  <th>Cliente</th>
-                  <th className="text-center">Parcela</th>
-                  <th>Vencimento</th>
-                  <th className="text-right">Valor Parcela</th>
-                  <th className="text-right">Comissão</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comissoesPorStatus['Atrasado'].map(item => (
-                  <tr key={item.id}>
-                    <td className="font-mono">{item.nota.numero_nf}</td>
-                    <td className="font-mono">{getPedidoOC(item.pedidoId)}</td>
-                    <td>{getClienteNome(item.pedidoId)}</td>
-                    <td className="text-center">{item.parcela}</td>
-                    <td>{new Date(item.data_vencimento).toLocaleDateString('pt-BR')}</td>
-                    <td className="text-right font-mono">R$ {item.valor.toFixed(2)}</td>
-                    <td className="text-right font-mono font-medium text-red-700">R$ {item.comissao_calculada.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+        )}
+      </div>
 
       {loading && (
-        <div className="text-center py-12 text-slate-500">
-          Carregando dados de comissões...
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <div className="animate-spin mb-4"><Clock size={32} /></div>
+          <p className="font-medium">Sincronizando dados financeiros...</p>
         </div>
-      )}
-
-      {!loading && vencimentos.length === 0 && (
-        <Card className="p-12 text-center text-slate-500">
-          Nenhuma comissão registrada ainda
-        </Card>
       )}
     </div>
   );

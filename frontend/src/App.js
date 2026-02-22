@@ -16,6 +16,7 @@ const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
   
   if (!user) {
+    // Ajustado para redirecionar corretamente dentro da subpasta
     return <Navigate to="/login" replace />;
   }
   
@@ -25,7 +26,8 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      {/* O segredo está aqui: adicionamos o basename */}
+      <BrowserRouter basename="/projeto-app">
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -34,6 +36,8 @@ function App() {
           <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
           <Route path="/notas-fiscais" element={<ProtectedRoute><NotasFiscais /></ProtectedRoute>} />
           <Route path="/comissoes" element={<ProtectedRoute><Comissoes /></ProtectedRoute>} />
+          {/* Rota de fallback para evitar tela branca em links errados */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" richColors />

@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+// 1. Trocamos axios pelo serviço configurado
+import api from '../services/api'; 
+import { useAuth } from '../context/AuthContext'; 
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Edit, Trash2, Search, MoreVertical, Package, Calculator, Tag } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, MoreVertical, Package, Scale, DollarSign, Percent, Lock } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const SEGMENTOS = ['CAIXA', 'CHAPA', 'CORTE VINCO', 'SIMPLEX'];
 
 const Materiais = () => {
+  const { isAdmin } = useAuth();
+  
   const [materiais, setMateriais] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -27,15 +30,21 @@ const Materiais = () => {
 
   const fetchMateriais = async () => {
     try {
-      const response = await axios.get(`${API}/materiais`);
+      // Usando o serviço centralizado
+      const response = await api.get('/materiais');
       setMateriais(response.data);
     } catch (error) {
-      toast.error('Erro ao carregar catálogo de materiais');
+      toast.error('Erro ao carregar catálogo');
     } finally { setLoading(false); }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isAdmin) {
+      toast.error('Ação não permitida para seu nível de acesso');
+      return;
+    }
+
     try {
       const data = {
         ...formData,
@@ -45,21 +54,22 @@ const Materiais = () => {
       };
 
       if (editingMaterial) {
-        await axios.put(`${API}/materiais/${editingMaterial.id}`, data);
-        toast.success('Material atualizado!');
+        await api.put(`/materiais/${editingMaterial.id}`, data);
+        toast.success('Material atualizado');
       } else {
-        await axios.post(`${API}/materiais`, data);
-        toast.success('Novo material cadastrado!');
+        await api.post('/materiais', data);
+        toast.success('Material cadastrado');
       }
       setDialogOpen(false);
       resetForm();
       fetchMateriais();
     } catch (error) {
-      toast.error('Erro ao processar solicitação');
+      toast.error('Erro na transação');
     }
   };
 
   const handleEdit = (material) => {
+    if (!isAdmin) return; 
     setEditingMaterial(material);
     setFormData({
       codigo: material.codigo,
@@ -73,10 +83,11 @@ const Materiais = () => {
   };
 
   const handleDelete = async (id) => {
+    if (!isAdmin) return;
     if (window.confirm('Excluir este material permanentemente?')) {
       try {
-        await axios.delete(`${API}/materiais/${id}`);
-        toast.success('Material removido');
+        await api.delete(`/materiais/${id}`);
+        toast.success('Registro removido');
         fetchMateriais();
       } catch (error) {
         toast.error('Erro ao deletar');
@@ -94,160 +105,145 @@ const Materiais = () => {
     material.codigo.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getSegmentoStyle = (segmento) => {
-    const styles = {
-      'CAIXA': 'bg-slate-100 text-slate-700 border-slate-200',
-      'CHAPA': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      'CORTE VINCO': 'bg-amber-50 text-amber-700 border-amber-200',
-      'SIMPLEX': 'bg-emerald-50 text-emerald-700 border-emerald-200'
-    };
-    return styles[segmento] || styles['CAIXA'];
-  };
+  const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-12 md:h-10 outline-none transition-all";
+  const sapSelectTrigger = "bg-white border-slate-300 focus:ring-0 focus:border-blue-800 rounded-none h-12 md:h-10 outline-none w-full flex items-center justify-between px-3 text-slate-700 font-medium";
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="p-4 md:p-8 bg-[#E9EEF2] min-h-screen font-sans antialiased text-slate-800">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b-2 border-blue-900 pb-4 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Catálogo de Materiais</h1>
-          <p className="text-slate-500 mt-1">Gerencie produtos, pesos e tabelas de comissão</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 uppercase tracking-tight flex items-center gap-3">
+            Produtos {!isAdmin && <Lock size={18} className="text-slate-400" />}
+          </h1>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+            {isAdmin ? 'Gestão de Itens e Precificação' : 'Consulta de Itens e Preços'}
+          </p>
         </div>
         
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 transition-all">
-              <Plus size={18} className="mr-2" /> Cadastrar Material
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl bg-white border-none shadow-2xl">
-            <DialogHeader className="pb-4 border-b">
-              <DialogTitle className="text-2xl font-bold text-slate-900">
-                {editingMaterial ? 'Editar Material' : 'Novo Material'}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-6 mt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase text-slate-500">FE (Código)</Label>
-                  <Input 
-                    value={formData.codigo} 
-                    onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                    className="h-11 focus:ring-2 focus:ring-indigo-600" 
-                    placeholder="Ex: FE-9901" required 
-                  />
+        {isAdmin && (
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button className="w-full md:w-auto bg-[#0A3D73] hover:bg-[#082D54] text-white rounded-none px-8 font-bold text-[10px] uppercase tracking-widest py-6 md:py-2 shadow-md border-b-2 border-[#051C36]">
+                <Plus size={16} className="mr-2" /> Novo Material
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-full md:max-w-2xl bg-white border-none shadow-2xl rounded-none p-0 overflow-y-auto max-h-[95vh]">
+              <DialogHeader className="p-6 bg-[#0A3D73]">
+                <DialogTitle className="text-white text-xs font-bold flex items-center gap-3 uppercase tracking-widest">
+                  <Package size={18} /> {editingMaterial ? 'Modificar Material' : 'Novo Registro'}
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="p-6 md:p-10 space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                    <div className="space-y-1.5">
+                      <Label className="text-[#0A3D73] font-bold text-[10px] uppercase">Código Interno</Label>
+                      <Input value={formData.codigo} onChange={(e) => setFormData({ ...formData, codigo: e.target.value })} required className={sapInput} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[#0A3D73] font-bold text-[10px] uppercase">Segmento</Label>
+                      <Select value={formData.segmento} onValueChange={(v) => setFormData({ ...formData, segmento: v })}>
+                        <SelectTrigger className={sapSelectTrigger}><SelectValue /></SelectTrigger>
+                        <SelectContent className="bg-white rounded-none border-slate-300 shadow-xl">
+                          {SEGMENTOS.map(seg => (
+                            <SelectItem key={seg} value={seg} className="text-xs font-bold uppercase focus:bg-slate-100 cursor-pointer">{seg}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label className="text-[#0A3D73] font-bold text-[10px] uppercase">Descrição Técnica</Label>
+                      <Input value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} required className={sapInput} />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 md:col-span-2 gap-4 p-5 bg-slate-50 border border-slate-200">
+                      <div className="space-y-1.5">
+                        <Label className="text-slate-500 font-bold text-[9px] uppercase flex items-center gap-1"><Scale size={12}/> Peso Unit. (KG)</Label>
+                        <Input type="number" step="0.001" value={formData.peso_unitario} onChange={(e) => setFormData({ ...formData, peso_unitario: e.target.value })} className={sapInput} required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-slate-500 font-bold text-[9px] uppercase flex items-center gap-1"><DollarSign size={12}/> Preço (R$)</Label>
+                        <Input type="number" step="0.01" value={formData.preco_unitario} onChange={(e) => setFormData({ ...formData, preco_unitario: e.target.value })} className={sapInput} required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-green-700 font-bold text-[9px] uppercase flex items-center gap-1"><Percent size={12}/> Comissão %</Label>
+                        <Input type="number" step="0.1" value={formData.porcentagem_comissao} onChange={(e) => setFormData({ ...formData, porcentagem_comissao: e.target.value })} className={`${sapInput} border-green-200 text-green-700`} required />
+                      </div>
+                    </div>
+                  </div>
+                <div className="flex flex-col md:flex-row justify-end gap-3 pt-6 border-t border-slate-100">
+                  <Button type="submit" className="w-full md:w-auto bg-[#0A3D73] hover:bg-[#082D54] text-white px-10 rounded-none text-[10px] font-bold uppercase py-6 md:py-2 order-1 md:order-2">
+                    Gravar Registro
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="w-full md:w-auto rounded-none text-slate-500 border-slate-300 py-6 md:py-2 order-2 md:order-1 transition-colors">
+                    Descartar
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase text-slate-500">Segmento</Label>
-                  <Select value={formData.segmento} onValueChange={(v) => setFormData({ ...formData, segmento: v })}>
-                    <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-white">
-                      {SEGMENTOS.map(seg => <SelectItem key={seg} value={seg}>{seg}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase text-slate-500">Descrição Completa</Label>
-                <Input 
-                  value={formData.descricao} 
-                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  className="h-11" placeholder="Ex: Chapa de papelão ondulado BC..." required 
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400">Peso Unit. (kg)</Label>
-                  <Input type="number" step="0.001" value={formData.peso_unitario} onChange={(e) => setFormData({ ...formData, peso_unitario: e.target.value })} className="bg-white" required />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400">Preço Unit. (R$)</Label>
-                  <Input type="number" step="0.01" value={formData.preco_unitario} onChange={(e) => setFormData({ ...formData, preco_unitario: e.target.value })} className="bg-white" required />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400">Comissão (%)</Label>
-                  <Input type="number" step="0.1" value={formData.porcentagem_comissao} onChange={(e) => setFormData({ ...formData, porcentagem_comissao: e.target.value })} className="bg-white" required />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>Descartar</Button>
-                <Button type="submit" className="bg-slate-900 text-white px-8">Salvar Material</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
-      <Card className="p-2 mb-6 bg-white border-none shadow-sm flex items-center">
-        <Search className="ml-3 text-slate-400" size={20} />
-        <Input
-          placeholder="Busque por código ou descrição do material..."
+      {/* BARRA DE BUSCA */}
+      <div className="relative mb-6 bg-white border border-slate-300 p-1 shadow-inner flex items-center">
+        <Search className="ml-4 text-slate-400" size={18} />
+        <Input 
+          placeholder="Código ou descrição técnica..." 
+          className="border-none focus:ring-0 text-slate-700 text-sm italic bg-transparent h-12 w-full outline-none"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="border-none focus-visible:ring-0 text-slate-600 placeholder:text-slate-400"
         />
-      </Card>
+      </div>
 
-      <Card className="border-none shadow-sm bg-white overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50/50 border-b border-slate-100">
+      {/* TABELA DE MATERIAIS */}
+      <Card className="border border-slate-300 rounded-none bg-white shadow-xl overflow-hidden">
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-[#0A3D73] text-white text-[10px] font-bold uppercase tracking-widest text-left">
               <tr>
-                <th className="px-6 py-4 text-left font-bold text-slate-500 uppercase tracking-widest text-[10px]">Cód. FE</th>
-                <th className="px-6 py-4 text-left font-bold text-slate-500 uppercase tracking-widest text-[10px]">Descrição do Item</th>
-                <th className="px-6 py-4 text-left font-bold text-slate-500 uppercase tracking-widest text-[10px]">Segmento</th>
-                <th className="px-6 py-4 text-right font-bold text-slate-500 uppercase tracking-widest text-[10px]">Peso Unit.</th>
-                <th className="px-6 py-4 text-right font-bold text-slate-500 uppercase tracking-widest text-[10px]">Vlr. Unitário</th>
-                <th className="px-6 py-4 text-right font-bold text-slate-500 uppercase tracking-widest text-[10px]">Comissão</th>
-                <th className="px-6 py-4 text-center"></th>
+                <th className="px-6 py-4">Cód. FE</th>
+                <th className="px-6 py-4">Descrição</th>
+                <th className="px-6 py-4">Segmento</th>
+                <th className="px-6 py-4 text-right">Peso Unit.</th>
+                <th className="px-6 py-4 text-right">Preço Unit.</th>
+                <th className="px-6 py-4 text-right">Comissão</th>
+                {isAdmin && <th className="px-6 py-4"></th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
-              {loading ? (
-                <tr><td colSpan="7" className="py-20 text-center text-slate-400 animate-pulse">Carregando catálogo...</td></tr>
-              ) : filteredMateriais.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="py-20 text-center">
-                    <div className="flex flex-col items-center text-slate-400">
-                      <Package size={48} className="mb-2 opacity-20" />
-                      <p>Nenhum material encontrado com este termo.</p>
-                    </div>
+            <tbody className="divide-y divide-slate-200 text-slate-700">
+              {filteredMateriais.map((m) => (
+                <tr key={m.id} className="hover:bg-blue-50/50 transition-colors group">
+                  <td className="px-6 py-4 font-mono font-bold text-blue-900 text-xs">{m.codigo}</td>
+                  <td className="px-6 py-4 font-bold text-[13px]">{m.descricao}</td>
+                  <td className="px-6 py-4">
+                    <span className="px-2 py-1 text-[9px] font-black bg-slate-100 border border-slate-200 text-slate-600 uppercase">
+                      {m.segmento}
+                    </span>
                   </td>
-                </tr>
-              ) : (
-                filteredMateriais.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="px-6 py-4 font-mono font-bold text-indigo-600">{m.codigo}</td>
-                    <td className="px-6 py-4 text-slate-700 font-medium">{m.descricao}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-black border ${getSegmentoStyle(m.segmento)}`}>
-                        {m.segmento}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right font-mono text-slate-500">{m.peso_unitario.toFixed(3)}kg</td>
-                    <td className="px-6 py-4 text-right font-bold text-slate-900">R$ {m.preco_unitario.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-right font-bold text-emerald-600">{m.porcentagem_comissao}%</td>
-                    <td className="px-6 py-4 text-center">
+                  <td className="px-6 py-4 text-right font-mono text-xs text-slate-500">{Number(m.peso_unitario).toFixed(3)}kg</td>
+                  <td className="px-6 py-4 text-right font-bold text-slate-900 text-sm">R$ {Number(m.preco_unitario).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-right font-black text-green-700 text-xs">{m.porcentagem_comissao}%</td>
+                  
+                  {isAdmin && (
+                    <td className="px-6 py-4 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" className="h-8 w-8 p-0 text-slate-300 hover:text-blue-900">
                             <MoreVertical size={16} />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-white">
-                          <DropdownMenuItem onClick={() => handleEdit(m)} className="cursor-pointer">
-                            <Edit size={14} className="mr-2" /> Editar
+                        <DropdownMenuContent align="end" className="bg-white border-slate-300 rounded-none shadow-xl">
+                          <DropdownMenuItem onClick={() => handleEdit(m)} className="cursor-pointer text-[10px] font-bold uppercase tracking-widest gap-2">
+                            <Edit size={14} className="text-blue-900" /> Alterar
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDelete(m.id)} className="cursor-pointer text-red-600 focus:text-red-600">
-                            <Trash2 size={14} className="mr-2" /> Excluir
+                          <DropdownMenuItem onClick={() => handleDelete(m.id)} className="cursor-pointer text-[10px] font-bold uppercase tracking-widest gap-2 text-red-600">
+                            <Trash2 size={14} /> Eliminar
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
-                  </tr>
-                ))
-              )}
+                  )}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

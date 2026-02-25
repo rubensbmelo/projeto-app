@@ -1,10 +1,12 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# IDE and editors
+# --- IDE and Editors ---
 .idea/
 .vscode/
+*.swp
+*.swo
 
-# Dependencies
+# --- Dependencies (Recursive for Monorepo) ---
+**/node_modules/
+**/bower_components/
 node_modules/
 /node_modules
 /.pnp
@@ -16,68 +18,73 @@ node_modules/
 !.yarn/releases
 !.yarn/versions
 
-# Testing
+# --- Testing ---
+**/coverage/
 /coverage
 
-# Next.js
-/.next/
-/out/
+# --- Next.js & React Builds ---
+**/.next/
+**/out/
+**/build/
+**/dist/
 next-env.d.ts
 *.tsbuildinfo
 
-# Production builds
-/build
-dist/
-dist
-
-# Environment files (comprehensive coverage)
-
+# --- Environment Files (Crucial for Security) ---
+**/*.env
+**/*.env.local
+**/*.env.development.local
+**/*.env.test.local
+**/*.env.production.local
 *token.json*
 *credentials.json*
-
-# Logs and debug files
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-dump.rdb
-
-# System files
-.DS_Store
 *.pem
 
-# Python
-__pycache__/
-*pyc*
-venv/
-.venv/
+# --- Python (Backend) ---
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/.venv/
+**/venv/
+**/env/
+**/bin/
+**/lib/
+**/include/
 
-# Development tools
+# --- Logs and Debug ---
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/.pnpm-debug.log*
+dump.rdb
+
+# --- System Files ---
+.DS_Store
+Thumbs.db
+*.dylib
+*.dll
+*.so
+
+# --- Development Tools & Caches ---
+**/.cache/
+.ipynb_checkpoints/
 chainlit.md
 .chainlit
-.ipynb_checkpoints/
 .ac
-
-# Deployment
 .vercel
 
-# Data and databases
+# --- Data and Databases ---
 agenthub/agents/youtube/db
+*.sqlite
+*.db
 
-# Archive files and large assets
+# --- Archive and Large Assets ---
 **/*.zip
 **/*.tar.gz
 **/*.tar
 **/*.tgz
 *.pack
 *.deb
-*.dylib
 
-# Build caches
-.cache/
-
-# Mobile development
-android-sdk/ -e 
-# Environment files
-*.env
-*.env.*
+# --- Mobile development ---
+android-sdk/

@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-// Essa lógica é fundamental para o Deploy:
-// 1. No Vercel, ele usará a variável VITE_API_URL que você cadastrará lá.
-// 2. No seu computador, ele continuará usando o localhost.
-const API_URL = import.meta.env.VITE_API_URL || 'https://projeto-app-bxwr.onrender.com';
+// Usamos a URL base do Render sem barras extras no final
+const API_URL = process.env.REACT_APP_API_URL || 
+                import.meta.env?.VITE_API_URL || 
+                'https://projeto-app-bxwr.onrender.com';
 
 const api = axios.create({
   baseURL: API_URL,

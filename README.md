@@ -80,6 +80,8 @@ Plaintext
        |                           |
        +---------------------------+
              Interface do Usuário
+
+
 🙏 Agradecimentos e IA
 Este sistema foi desenvolvido com o auxílio estratégico de Inteligência Artificial. A IA foi utilizada para:
 

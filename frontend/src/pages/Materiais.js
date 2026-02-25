@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-// 1. Trocamos axios pelo serviço configurado
 import api from '../services/api'; 
 import { useAuth } from '../context/AuthContext'; 
 import { Button } from '../components/ui/button';
@@ -23,16 +22,15 @@ const Materiais = () => {
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
-    codigo: '', descricao: '', segmento: 'CAIXA', peso_unitario: '', porcentagem_comissao: '', preco_unitario: ''
+    codigo: '', descricao: '', segmento: 'CAIXA', peso_unit: '', comissao: '', preco_unit: ''
   });
 
   useEffect(() => { fetchMateriais(); }, []);
 
   const fetchMateriais = async () => {
     try {
-      // Usando o serviço centralizado
       const response = await api.get('/materiais');
-      setMateriais(response.data);
+      setMateriais(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       toast.error('Erro ao carregar catálogo');
     } finally { setLoading(false); }
@@ -41,30 +39,42 @@ const Materiais = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isAdmin) {
-      toast.error('Ação não permitida para seu nível de acesso');
+      toast.error('Ação não permitida');
       return;
     }
 
+    // FUNÇÃO QUE LIMPA VÍRGULA E TRANSFORMA EM NÚMERO
+    const parseMoeda = (valor) => {
+      if (!valor) return 0;
+      const limpo = String(valor).replace(',', '.');
+      return parseFloat(limpo) || 0;
+    };
+
     try {
-      const data = {
-        ...formData,
-        peso_unitario: parseFloat(formData.peso_unitario),
-        porcentagem_comissao: parseFloat(formData.porcentagem_comissao),
-        preco_unitario: parseFloat(formData.preco_unitario)
+      // Sincronizando nomes com o Backend (main.py)
+      const payload = {
+        nome: formData.descricao, // O Python usa 'nome' como campo obrigatório
+        codigo: formData.codigo,
+        descricao: formData.descricao,
+        segmento: formData.segmento,
+        peso_unit: parseMoeda(formData.peso_unit),
+        comissao: parseMoeda(formData.comissao),
+        preco_unit: parseMoeda(formData.preco_unit)
       };
 
       if (editingMaterial) {
-        await api.put(`/materiais/${editingMaterial.id}`, data);
+        await api.put(`/materiais/${editingMaterial.id}`, payload);
         toast.success('Material atualizado');
       } else {
-        await api.post('/materiais', data);
-        toast.success('Material cadastrado');
+        await api.post('/materiais', payload);
+        toast.success('Material cadastrado com sucesso!');
       }
       setDialogOpen(false);
       resetForm();
       fetchMateriais();
     } catch (error) {
-      toast.error('Erro na transação');
+      console.error("Erro detalhado:", error.response?.data);
+      toast.error('Erro na transação: Verifique os valores');
     }
   };
 
@@ -72,12 +82,12 @@ const Materiais = () => {
     if (!isAdmin) return; 
     setEditingMaterial(material);
     setFormData({
-      codigo: material.codigo,
-      descricao: material.descricao,
-      segmento: material.segmento,
-      peso_unitario: material.peso_unitario.toString(),
-      porcentagem_comissao: material.porcentagem_comissao.toString(),
-      preco_unitario: material.preco_unitario.toString()
+      codigo: material.codigo || '',
+      descricao: material.descricao || material.nome || '',
+      segmento: material.segmento || 'CAIXA',
+      peso_unit: material.peso_unit?.toString() || '',
+      comissao: material.comissao?.toString() || '',
+      preco_unit: material.preco_unit?.toString() || ''
     });
     setDialogOpen(true);
   };
@@ -96,13 +106,14 @@ const Materiais = () => {
   };
 
   const resetForm = () => {
-    setFormData({ codigo: '', descricao: '', segmento: 'CAIXA', peso_unitario: '', porcentagem_comissao: '', preco_unitario: '' });
+    setFormData({ codigo: '', descricao: '', segmento: 'CAIXA', peso_unit: '', comissao: '', preco_unit: '' });
     setEditingMaterial(null);
   };
 
-  const filteredMateriais = materiais.filter(material =>
-(material.descricao?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-(material.codigo?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+  const filteredMateriais = materiais.filter(m =>
+    (m.nome?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+    (m.codigo?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+    (m.descricao?.toLowerCase() || "").includes(searchTerm.toLowerCase())
   );
 
   const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-12 md:h-10 outline-none transition-all";
@@ -116,7 +127,7 @@ const Materiais = () => {
             Produtos {!isAdmin && <Lock size={18} className="text-slate-400" />}
           </h1>
           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-            {isAdmin ? 'Gestão de Itens e Precificação' : 'Consulta de Itens e Preços'}
+            Gestão de Itens e Precificação
           </p>
         </div>
         
@@ -157,15 +168,15 @@ const Materiais = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 md:col-span-2 gap-4 p-5 bg-slate-50 border border-slate-200">
                       <div className="space-y-1.5">
                         <Label className="text-slate-500 font-bold text-[9px] uppercase flex items-center gap-1"><Scale size={12}/> Peso Unit. (KG)</Label>
-                        <Input type="number" step="0.001" value={formData.peso_unitario} onChange={(e) => setFormData({ ...formData, peso_unitario: e.target.value })} className={sapInput} required />
+                        <Input value={formData.peso_unit} onChange={(e) => setFormData({ ...formData, peso_unit: e.target.value })} className={sapInput} required />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-slate-500 font-bold text-[9px] uppercase flex items-center gap-1"><DollarSign size={12}/> Preço (R$)</Label>
-                        <Input type="number" step="0.01" value={formData.preco_unitario} onChange={(e) => setFormData({ ...formData, preco_unitario: e.target.value })} className={sapInput} required />
+                        <Input value={formData.preco_unit} onChange={(e) => setFormData({ ...formData, preco_unit: e.target.value })} className={sapInput} required />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-green-700 font-bold text-[9px] uppercase flex items-center gap-1"><Percent size={12}/> Comissão %</Label>
-                        <Input type="number" step="0.1" value={formData.porcentagem_comissao} onChange={(e) => setFormData({ ...formData, porcentagem_comissao: e.target.value })} className={`${sapInput} border-green-200 text-green-700`} required />
+                        <Input value={formData.comissao} onChange={(e) => setFormData({ ...formData, comissao: e.target.value })} className={`${sapInput} border-green-200 text-green-700`} required />
                       </div>
                     </div>
                   </div>
@@ -196,7 +207,7 @@ const Materiais = () => {
 
       {/* TABELA DE MATERIAIS */}
       <Card className="border border-slate-300 rounded-none bg-white shadow-xl overflow-hidden">
-        <div className="hidden md:block overflow-x-auto">
+        <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-[#0A3D73] text-white text-[10px] font-bold uppercase tracking-widest text-left">
               <tr>
@@ -213,16 +224,11 @@ const Materiais = () => {
               {filteredMateriais.map((m) => (
                 <tr key={m.id} className="hover:bg-blue-50/50 transition-colors group">
                   <td className="px-6 py-4 font-mono font-bold text-blue-900 text-xs">{m.codigo}</td>
-                  <td className="px-6 py-4 font-bold text-[13px]">{m.descricao}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 text-[9px] font-black bg-slate-100 border border-slate-200 text-slate-600 uppercase">
-                      {m.segmento}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono text-xs text-slate-500">{Number(m.peso_unitario).toFixed(3)}kg</td>
-                  <td className="px-6 py-4 text-right font-bold text-slate-900 text-sm">R$ {Number(m.preco_unitario).toFixed(2)}</td>
-                  <td className="px-6 py-4 text-right font-black text-green-700 text-xs">{m.porcentagem_comissao}%</td>
-                  
+                  <td className="px-6 py-4 font-bold text-[13px]">{m.nome || m.descricao}</td>
+                  <td className="px-6 py-4 uppercase text-[10px] font-bold text-slate-500">{m.segmento}</td>
+                  <td className="px-6 py-4 text-right font-mono text-xs">{Number(m.peso_unit || 0).toFixed(3)}kg</td>
+                  <td className="px-6 py-4 text-right font-bold text-slate-900 text-sm">R$ {Number(m.preco_unit || 0).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-right font-black text-green-700 text-xs">{m.comissao}%</td>
                   {isAdmin && (
                     <td className="px-6 py-4 text-right">
                       <DropdownMenu>

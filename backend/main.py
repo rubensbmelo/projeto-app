@@ -1,7 +1,7 @@
-from fastapi import FastAPI, HTTPException, Body, Depends
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List, Optional
 from bson import ObjectId
 import os
@@ -29,7 +29,7 @@ if not MONGODB_URL:
 client = AsyncIOMotorClient(MONGODB_URL)
 db = client.erp_database 
 
-# 4. Schemas Atualizados
+# 4. Schemas (Modelos de Dados)
 
 class MaterialSchema(BaseModel):
     nome: str
@@ -59,6 +59,8 @@ class PedidoSchema(BaseModel):
     cliente_id: str
     itens: List[ItemPedido]
     status: str = "Pendente"
+    valor_total: float = 0.0
+    peso_total: float = 0.0
 
 # --- ROTA DE AUTENTICAÇÃO ---
 
@@ -78,7 +80,7 @@ async def login(data: dict = Body(...)):
 async def get_me():
     return {"nome": "Administrador", "email": "admin@admin.com", "role": "admin"}
 
-# --- 5. Rotas de MATERIAIS ---
+# --- 5. Rotas de MATERIAIS (Agora com Editar e Deletar) ---
 
 @app.get("/api/materiais")
 async def listar_materiais():
@@ -91,6 +93,16 @@ async def listar_materiais():
 async def criar_material(material: MaterialSchema):
     result = await db.materiais.insert_one(material.dict())
     return {"id": str(result.inserted_id), "message": "Material salvo!"}
+
+@app.put("/api/materiais/{material_id}")
+async def atualizar_material(material_id: str, material: MaterialSchema):
+    await db.materiais.update_one({"_id": ObjectId(material_id)}, {"$set": material.dict()})
+    return {"message": "Material atualizado!"}
+
+@app.delete("/api/materiais/{material_id}")
+async def deletar_material(material_id: str):
+    await db.materiais.delete_one({"_id": ObjectId(material_id)})
+    return {"message": "Material removido!"}
 
 # --- 6. Rotas de PEDIDOS ---
 
@@ -106,7 +118,7 @@ async def criar_pedido(pedido: PedidoSchema):
     result = await db.pedidos.insert_one(pedido.dict())
     return {"id": str(result.inserted_id), "message": "Pedido registrado!"}
 
-# --- 7. Rotas de CLIENTES (Completas) ---
+# --- 7. Rotas de CLIENTES ---
 
 @app.get("/api/clientes")
 async def listar_clientes():

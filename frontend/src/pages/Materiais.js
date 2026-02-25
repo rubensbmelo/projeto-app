@@ -101,8 +101,8 @@ const Materiais = () => {
   };
 
   const filteredMateriais = materiais.filter(material =>
-    material.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    material.codigo.toLowerCase().includes(searchTerm.toLowerCase())
+(material.descricao?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+(material.codigo?.toLowerCase() || "").includes(searchTerm.toLowerCase())
   );
 
   const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-12 md:h-10 outline-none transition-all";

@@ -59,7 +59,7 @@
   },
   "scripts": {
     "start": "craco start",
-    "build": "craco build",
+    "build": "NODE_PATH=src craco build",
     "test": "craco test",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build"

@@ -36,7 +36,8 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter basename="/projeto-app">
+      {/* Removido o basename para funcionar na Vercel */}
+      <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           

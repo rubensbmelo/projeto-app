@@ -12,7 +12,7 @@ load_dotenv()
 
 app = FastAPI(title="ERP Vendas 2026 - Sistema Integrado")
 
-# 2. Configuração de CORS - Libera o acesso para o seu React (Frontend)
+# 2. Configuração de CORS - Libera o acesso para o seu React (Vercel e Localhost)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -22,13 +22,11 @@ app.add_middleware(
 )
 
 # 3. Conexão com o MongoDB Atlas
-# Certifique-se de que a MONGODB_URL no seu .env está correta!
 MONGODB_URL = os.getenv("MONGODB_URL")
 if not MONGODB_URL:
     MONGODB_URL = "mongodb://localhost:27017"
 
 client = AsyncIOMotorClient(MONGODB_URL)
-# Conectando ao banco exato que vimos no seu painel do Atlas
 db = client.erp_database 
 
 # 4. Schemas (Estrutura dos Dados)
@@ -51,6 +49,40 @@ class PedidoSchema(BaseModel):
     cliente_id: str
     itens: List[ItemPedido]
     status: str = "Pendente"
+
+# --- NOVO: ROTA DE AUTENTICAÇÃO QUE ESTAVA FALTANDO ---
+
+@app.post("/api/auth/login")
+async def login(data: dict = Body(...)):
+    email = data.get("email")
+    password = data.get("password")
+
+    # Logica de autenticação simples para teste
+    # Você pode substituir por uma busca no banco futuramente
+    if email == "admin@admin.com" and password == "123456":
+        return {
+            "access_token": "token-secret-12345",
+            "token_type": "bearer",
+            "user": {
+                "nome": "Administrador",
+                "email": email,
+                "role": "admin"
+            }
+        }
+    
+    # Se as credenciais estiverem erradas
+    raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+
+@app.get("/api/auth/me")
+async def get_me():
+    # Rota usada pelo seu AuthContext para validar se o usuário ainda está logado
+    return {
+        "nome": "Administrador",
+        "email": "admin@admin.com",
+        "role": "admin"
+    }
+
+# ---------------------------------------------------
 
 # 5. Rotas de MATERIAIS
 
@@ -100,5 +132,4 @@ async def criar_cliente(cliente: ClienteSchema):
 # Iniciar o servidor
 if __name__ == "__main__":
     import uvicorn
-    # Roda na porta 8000 para o Swagger ficar em http://127.0.0.1:8000/docs
     uvicorn.run(app, host="0.0.0.0", port=8000)

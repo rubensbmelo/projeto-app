@@ -44,7 +44,7 @@ const webpackConfig = {
   },
   webpack: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      '@': path.resolve(__dirname, 'src/'),
     },
     configure: (webpackConfig) => {
 

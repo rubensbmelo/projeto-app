@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-// 1. Trocamos axios pelo serviço configurado
 import api from '../services/api'; 
 import { useAuth } from '../context/AuthContext'; 
 import { Button } from '../components/ui/button';
@@ -8,7 +7,7 @@ import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Edit, Trash2, Search, MoreVertical, Package, Scale, DollarSign, Percent, Lock } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, MoreVertical, Package, Scale, DollarSign, Percent, Lock, Calculator } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
@@ -16,41 +15,53 @@ const SEGMENTOS = ['CAIXA', 'CHAPA', 'CORTE VINCO', 'SIMPLEX'];
 
 const Materiais = () => {
   const { isAdmin } = useAuth();
-  
   const [materiais, setMateriais] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
   const [formData, setFormData] = useState({
-    codigo: '', descricao: '', segmento: 'CAIXA', peso_unitario: '', porcentagem_comissao: '', preco_unitario: ''
+    codigo: '', descricao: '', segmento: 'CAIXA', peso_unit: '', comissao: '', preco_unit: ''
   });
 
   useEffect(() => { fetchMateriais(); }, []);
 
   const fetchMateriais = async () => {
     try {
-      // Usando o serviço centralizado
       const response = await api.get('/materiais');
-      setMateriais(response.data);
+      setMateriais(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       toast.error('Erro ao carregar catálogo');
     } finally { setLoading(false); }
   };
 
+  const limparNumero = (valor) => {
+    if (!valor) return 0;
+    return parseFloat(String(valor).replace(',', '.')) || 0;
+  };
+
+  // Cálculo do Fator em tempo real para o formulário
+  const calcularFatorForm = () => {
+    const peso = limparNumero(formData.peso_unit);
+    const preco = limparNumero(formData.preco_unit);
+    if (peso > 0) return (preco / peso).toFixed(2);
+    return "0.00";
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isAdmin) {
-      toast.error('Ação não permitida para seu nível de acesso');
-      return;
-    }
+    if (!isAdmin) return toast.error('Ação não permitida');
 
     try {
       const data = {
-        ...formData,
-        peso_unitario: parseFloat(formData.peso_unitario),
-        porcentagem_comissao: parseFloat(formData.porcentagem_comissao),
-        preco_unitario: parseFloat(formData.preco_unitario)
+        nome: formData.descricao,
+        codigo: formData.codigo,
+        descricao: formData.descricao,
+        segmento: formData.segmento,
+        peso_unit: limparNumero(formData.peso_unit),
+        comissao: limparNumero(formData.comissao),
+        preco_unit: limparNumero(formData.preco_unit)
       };
 
       if (editingMaterial) {
@@ -64,7 +75,7 @@ const Materiais = () => {
       resetForm();
       fetchMateriais();
     } catch (error) {
-      toast.error('Erro na transação');
+      toast.error('Erro na transação. Verifique os valores.');
     }
   };
 
@@ -72,12 +83,12 @@ const Materiais = () => {
     if (!isAdmin) return; 
     setEditingMaterial(material);
     setFormData({
-      codigo: material.codigo,
-      descricao: material.descricao,
-      segmento: material.segmento,
-      peso_unitario: material.peso_unitario.toString(),
-      porcentagem_comissao: material.porcentagem_comissao.toString(),
-      preco_unitario: material.preco_unitario.toString()
+      codigo: material.codigo || '',
+      descricao: material.nome || material.descricao || '',
+      segmento: material.segmento || 'CAIXA',
+      peso_unit: String(material.peso_unit || ''),
+      comissao: String(material.comissao || ''),
+      preco_unit: String(material.preco_unit || '')
     });
     setDialogOpen(true);
   };
@@ -96,13 +107,13 @@ const Materiais = () => {
   };
 
   const resetForm = () => {
-    setFormData({ codigo: '', descricao: '', segmento: 'CAIXA', peso_unitario: '', porcentagem_comissao: '', preco_unitario: '' });
+    setFormData({ codigo: '', descricao: '', segmento: 'CAIXA', peso_unit: '', comissao: '', preco_unit: '' });
     setEditingMaterial(null);
   };
 
-  const filteredMateriais = materiais.filter(material =>
-(material.descricao?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-(material.codigo?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+  const filteredMateriais = materiais.filter(m =>
+    (m.nome?.toLowerCase() || m.descricao?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+    (m.codigo?.toLowerCase() || "").includes(searchTerm.toLowerCase())
   );
 
   const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-12 md:h-10 outline-none transition-all";
@@ -116,7 +127,7 @@ const Materiais = () => {
             Produtos {!isAdmin && <Lock size={18} className="text-slate-400" />}
           </h1>
           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-            {isAdmin ? 'Gestão de Itens e Precificação' : 'Consulta de Itens e Preços'}
+            Gestão de Itens, Pesos e Fatores
           </p>
         </div>
         
@@ -156,16 +167,18 @@ const Materiais = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 md:col-span-2 gap-4 p-5 bg-slate-50 border border-slate-200">
                       <div className="space-y-1.5">
-                        <Label className="text-slate-500 font-bold text-[9px] uppercase flex items-center gap-1"><Scale size={12}/> Peso Unit. (KG)</Label>
-                        <Input type="number" step="0.001" value={formData.peso_unitario} onChange={(e) => setFormData({ ...formData, peso_unitario: e.target.value })} className={sapInput} required />
+                        <Label className="text-slate-500 font-bold text-[9px] uppercase flex items-center gap-1"><Scale size={12}/> Peso (KG)</Label>
+                        <Input value={formData.peso_unit} onChange={(e) => setFormData({ ...formData, peso_unit: e.target.value })} className={sapInput} placeholder="0,000" required />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-slate-500 font-bold text-[9px] uppercase flex items-center gap-1"><DollarSign size={12}/> Preço (R$)</Label>
-                        <Input type="number" step="0.01" value={formData.preco_unitario} onChange={(e) => setFormData({ ...formData, preco_unitario: e.target.value })} className={sapInput} required />
+                        <Input value={formData.preco_unit} onChange={(e) => setFormData({ ...formData, preco_unit: e.target.value })} className={sapInput} placeholder="0,00" required />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-green-700 font-bold text-[9px] uppercase flex items-center gap-1"><Percent size={12}/> Comissão %</Label>
-                        <Input type="number" step="0.1" value={formData.porcentagem_comissao} onChange={(e) => setFormData({ ...formData, porcentagem_comissao: e.target.value })} className={`${sapInput} border-green-200 text-green-700`} required />
+                        <Label className="text-blue-700 font-bold text-[9px] uppercase flex items-center gap-1"><Calculator size={12}/> Fator (R$/kg)</Label>
+                        <div className="h-12 md:h-10 flex items-center px-3 bg-blue-50 border border-blue-200 text-blue-800 font-mono font-bold text-sm">
+                          R$ {calcularFatorForm()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -183,7 +196,6 @@ const Materiais = () => {
         )}
       </div>
 
-      {/* BARRA DE BUSCA */}
       <div className="relative mb-6 bg-white border border-slate-300 p-1 shadow-inner flex items-center">
         <Search className="ml-4 text-slate-400" size={18} />
         <Input 
@@ -194,56 +206,57 @@ const Materiais = () => {
         />
       </div>
 
-      {/* TABELA DE MATERIAIS */}
       <Card className="border border-slate-300 rounded-none bg-white shadow-xl overflow-hidden">
-        <div className="hidden md:block overflow-x-auto">
+        <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-[#0A3D73] text-white text-[10px] font-bold uppercase tracking-widest text-left">
               <tr>
                 <th className="px-6 py-4">Cód. FE</th>
                 <th className="px-6 py-4">Descrição</th>
-                <th className="px-6 py-4">Segmento</th>
                 <th className="px-6 py-4 text-right">Peso Unit.</th>
                 <th className="px-6 py-4 text-right">Preço Unit.</th>
+                <th className="px-6 py-4 text-right bg-blue-800/50">Fator (R$/kg)</th>
                 <th className="px-6 py-4 text-right">Comissão</th>
                 {isAdmin && <th className="px-6 py-4"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">
-              {filteredMateriais.map((m) => (
-                <tr key={m.id} className="hover:bg-blue-50/50 transition-colors group">
-                  <td className="px-6 py-4 font-mono font-bold text-blue-900 text-xs">{m.codigo}</td>
-                  <td className="px-6 py-4 font-bold text-[13px]">{m.descricao}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 text-[9px] font-black bg-slate-100 border border-slate-200 text-slate-600 uppercase">
-                      {m.segmento}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono text-xs text-slate-500">{Number(m.peso_unitario).toFixed(3)}kg</td>
-                  <td className="px-6 py-4 text-right font-bold text-slate-900 text-sm">R$ {Number(m.preco_unitario).toFixed(2)}</td>
-                  <td className="px-6 py-4 text-right font-black text-green-700 text-xs">{m.porcentagem_comissao}%</td>
-                  
-                  {isAdmin && (
-                    <td className="px-6 py-4 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0 text-slate-300 hover:text-blue-900">
-                            <MoreVertical size={16} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-white border-slate-300 rounded-none shadow-xl">
-                          <DropdownMenuItem onClick={() => handleEdit(m)} className="cursor-pointer text-[10px] font-bold uppercase tracking-widest gap-2">
-                            <Edit size={14} className="text-blue-900" /> Alterar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDelete(m.id)} className="cursor-pointer text-[10px] font-bold uppercase tracking-widest gap-2 text-red-600">
-                            <Trash2 size={14} /> Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+              {filteredMateriais.map((m) => {
+                const fator = m.peso_unit > 0 ? (m.preco_unit / m.peso_unit) : 0;
+                return (
+                  <tr key={m.id} className="hover:bg-blue-50/50 transition-colors group">
+                    <td className="px-6 py-4 font-mono font-bold text-blue-900 text-xs">{m.codigo}</td>
+                    <td className="px-6 py-4 font-bold text-[13px] uppercase">
+                        {m.nome || m.descricao}
+                        <div className="text-[9px] text-slate-400 font-normal">{m.segmento}</div>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="px-6 py-4 text-right font-mono text-xs text-slate-500">{Number(m.peso_unit || 0).toFixed(3)}kg</td>
+                    <td className="px-6 py-4 text-right font-bold text-slate-900 text-sm">R$ {Number(m.preco_unit || 0).toFixed(2)}</td>
+                    <td className="px-6 py-4 text-right font-black text-blue-700 bg-blue-50/30">R$ {fator.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-right font-black text-green-700 text-xs">{m.comissao || 0}%</td>
+                    
+                    {isAdmin && (
+                      <td className="px-6 py-4 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0 text-slate-300 hover:text-blue-900">
+                              <MoreVertical size={16} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-white border-slate-300 rounded-none shadow-xl">
+                            <DropdownMenuItem onClick={() => handleEdit(m)} className="cursor-pointer text-[10px] font-bold uppercase tracking-widest gap-2">
+                              <Edit size={14} className="text-blue-900" /> Alterar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDelete(m.id)} className="cursor-pointer text-[10px] font-bold uppercase tracking-widest gap-2 text-red-600">
+                              <Trash2 size={14} /> Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

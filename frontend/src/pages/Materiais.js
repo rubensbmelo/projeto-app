@@ -41,7 +41,6 @@ const Materiais = () => {
     return parseFloat(String(valor).replace(',', '.')) || 0;
   };
 
-  // Cálculo do Fator em tempo real para o formulário
   const calcularFatorForm = () => {
     const peso = limparNumero(formData.peso_unit);
     const preco = limparNumero(formData.preco_unit);
@@ -116,7 +115,7 @@ const Materiais = () => {
     (m.codigo?.toLowerCase() || "").includes(searchTerm.toLowerCase())
   );
 
-  const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-12 md:h-10 outline-none transition-all";
+  const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-12 md:h-10 outline-none transition-all placeholder:text-slate-300";
   const sapSelectTrigger = "bg-white border-slate-300 focus:ring-0 focus:border-blue-800 rounded-none h-12 md:h-10 outline-none w-full flex items-center justify-between px-3 text-slate-700 font-medium";
 
   return (
@@ -165,7 +164,9 @@ const Materiais = () => {
                       <Label className="text-[#0A3D73] font-bold text-[10px] uppercase">Descrição Técnica</Label>
                       <Input value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} required className={sapInput} />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 md:col-span-2 gap-4 p-5 bg-slate-50 border border-slate-200">
+
+                    {/* GRID DE VALORES REORGANIZADO PARA 4 COLUNAS */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 md:col-span-2 gap-4 p-5 bg-slate-50 border border-slate-200">
                       <div className="space-y-1.5">
                         <Label className="text-slate-500 font-bold text-[9px] uppercase flex items-center gap-1"><Scale size={12}/> Peso (KG)</Label>
                         <Input value={formData.peso_unit} onChange={(e) => setFormData({ ...formData, peso_unit: e.target.value })} className={sapInput} placeholder="0,000" required />
@@ -173,6 +174,11 @@ const Materiais = () => {
                       <div className="space-y-1.5">
                         <Label className="text-slate-500 font-bold text-[9px] uppercase flex items-center gap-1"><DollarSign size={12}/> Preço (R$)</Label>
                         <Input value={formData.preco_unit} onChange={(e) => setFormData({ ...formData, preco_unit: e.target.value })} className={sapInput} placeholder="0,00" required />
+                      </div>
+                      {/* NOVO CAMPO DE COMISSÃO */}
+                      <div className="space-y-1.5">
+                        <Label className="text-green-700 font-bold text-[9px] uppercase flex items-center gap-1"><Percent size={12}/> Comissão (%)</Label>
+                        <Input value={formData.comissao} onChange={(e) => setFormData({ ...formData, comissao: e.target.value })} className={`${sapInput} border-green-200 focus:border-green-600`} placeholder="0" required />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-blue-700 font-bold text-[9px] uppercase flex items-center gap-1"><Calculator size={12}/> Fator (R$/kg)</Label>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-// 1. Trocamos axios por api customizada
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
@@ -8,7 +7,7 @@ import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { FilePlus, CheckCircle, Search, CalendarDays, ReceiptText, Factory, Lock } from 'lucide-react';
+import { FilePlus, Search, CalendarDays, ReceiptText, Factory, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 const NotasFiscais = () => {
@@ -35,15 +34,14 @@ const NotasFiscais = () => {
 
   const fetchData = async () => {
     try {
-      // 2. Chamadas protegidas com Token automático
       const [notasRes, vencimentosRes, pedidosRes] = await Promise.all([
         api.get('/notas-fiscais'),
         api.get('/vencimentos'),
         api.get('/pedidos')
       ]);
-      setNotas(notasRes.data);
-      setVencimentos(vencimentosRes.data);
-      setPedidos(pedidosRes.data);
+      setNotas(notasRes.data || []);
+      setVencimentos(vencimentosRes.data || []);
+      setPedidos(pedidosRes.data || []);
     } catch (error) {
       toast.error('Erro ao carregar dados financeiros');
     } finally { setLoading(false); }
@@ -64,7 +62,6 @@ const NotasFiscais = () => {
         numero_parcelas: parseInt(formData.numero_parcelas),
         datas_manuais: [formData.data_p1, formData.data_p2, formData.data_p3].filter(d => d !== '')
       };
-      // 3. POST centralizado
       await api.post('/notas-fiscais', payload);
       toast.success('Nota fiscal e parcelas criadas!');
       setDialogOpen(false);
@@ -82,8 +79,12 @@ const NotasFiscais = () => {
     }
 
     try {
-      const hoje = new Date().toISOString();
-      // 4. PUT centralizado para baixa de pagamento
+      // Ajuste para pegar a data local sem erro de fuso horário
+      const dataLocal = new Date();
+      const hoje = new Date(dataLocal.getTime() - (dataLocal.getTimezoneOffset() * 60000))
+                    .toISOString()
+                    .split('T')[0];
+
       await api.put(`/vencimentos/${vencimentoId}`, { 
         status: 'Pago',
         data_pagamento: hoje 
@@ -107,7 +108,6 @@ const NotasFiscais = () => {
     return pedido ? { oc: pedido.numero_oc, fabrica: pedido.numero_pedido_fabrica } : { oc: 'N/A', fabrica: '---' };
   };
 
-  // Estilo padrão SAP (Industrial)
   const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-10 outline-none transition-all";
   const sapSelectTrigger = "bg-white border-slate-300 focus:ring-0 rounded-none h-10 outline-none w-full flex items-center justify-between px-3 transition-all";
 
@@ -120,6 +120,8 @@ const NotasFiscais = () => {
       (info.fabrica && info.fabrica.toLowerCase().includes(term))
     );
   });
+
+  if (loading) return <div className="p-10 text-center font-bold text-[#0A3D73]">CARREGANDO FINANCEIRO...</div>;
 
   return (
     <div className="p-4 md:p-8 bg-[#E9EEF2] min-h-screen font-sans">
@@ -141,7 +143,6 @@ const NotasFiscais = () => {
         )}
       </div>
 
-      {/* BARRA DE PESQUISA */}
       <Card className="mb-6 p-1 bg-white border border-slate-300 flex items-center shadow-inner rounded-none">
         <Search className="ml-4 text-slate-400" size={18} />
         <Input
@@ -152,7 +153,6 @@ const NotasFiscais = () => {
         />
       </Card>
 
-      {/* TABELA DE VENCIMENTOS */}
       <Card className="bg-white border border-slate-300 rounded-none shadow-xl overflow-hidden mb-8">
         <div className="p-4 bg-[#0A3D73] text-white flex items-center justify-between">
           <h3 className="text-[10px] font-bold flex items-center gap-2 uppercase tracking-widest">
@@ -161,7 +161,7 @@ const NotasFiscais = () => {
         </div>
 
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left border-collapse">
             <thead className="bg-slate-50 border-b border-slate-200 text-[#0A3D73] text-[10px] font-bold uppercase tracking-widest">
               <tr>
                 <th className="px-6 py-4">NF</th>
@@ -179,13 +179,13 @@ const NotasFiscais = () => {
                 const nota = notas.find(n => n.id === venc.nota_fiscal_id);
                 const info = getPedidoInfo(nota?.pedido_id);
                 return (
-                  <tr key={venc.id} className="hover:bg-blue-50/50 transition-colors">
+                  <tr key={venc.id} className="hover:bg-blue-50/50 transition-colors italic-none">
                     <td className="px-6 py-4 font-mono font-bold text-slate-900 text-xs">{nota?.numero_nf}</td>
                     <td className="px-6 py-4 text-slate-500 font-mono text-xs">{info.fabrica}</td>
                     <td className="px-6 py-4 text-center text-xs">{venc.parcela}ª</td>
-                    <td className="px-6 py-4 font-bold text-xs">{new Date(venc.data_vencimento).toLocaleDateString('pt-BR')}</td>
-                    <td className="px-6 py-4 text-right font-mono text-xs text-slate-500">R$ {venc.valor.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-right font-mono font-bold text-green-700 text-xs italic">R$ {venc.comissao_calculada.toFixed(2)}</td>
+                    <td className="px-6 py-4 font-bold text-xs">{new Date(venc.data_vencimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</td>
+                    <td className="px-6 py-4 text-right font-mono text-xs text-slate-500">R$ {Number(venc.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td className="px-6 py-4 text-right font-mono font-bold text-green-700 text-xs">R$ {Number(venc.comissao_calculada).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`px-2 py-1 text-[9px] font-black border uppercase ${
                         venc.status === 'Pago' 
@@ -211,16 +211,15 @@ const NotasFiscais = () => {
           </table>
         </div>
 
-        {/* VERSÃO MOBILE */}
         <div className="md:hidden divide-y divide-slate-100 bg-white">
           {vencimentosFiltrados.map(venc => {
             const nota = notas.find(n => n.id === venc.nota_fiscal_id);
             const info = getPedidoInfo(nota?.pedido_id);
             return (
-              <div key={venc.id} className="p-4 flex flex-col gap-3">
+              <div key={venc.id} className="p-4 flex flex-col gap-3 font-sans">
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Nota Fiscal</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase">Nota Fiscal</span>
                     <span className="font-mono font-bold text-slate-900">NF {nota?.numero_nf || '---'}</span>
                   </div>
                   <span className={`px-3 py-1 text-[9px] font-black border uppercase ${
@@ -236,13 +235,13 @@ const NotasFiscais = () => {
                    </div>
                    <div className="flex flex-col items-end">
                       <span className="text-[8px] font-bold text-slate-400 uppercase">Vencimento</span>
-                      <span className="text-[10px] font-bold text-blue-900">{new Date(venc.data_vencimento).toLocaleDateString('pt-BR')}</span>
+                      <span className="text-[10px] font-bold text-blue-900">{new Date(venc.data_vencimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                    </div>
                 </div>
                 <div className="flex justify-between items-center">
                    <div className="flex flex-col">
-                      <span className="text-[8px] font-black text-green-700 uppercase tracking-widest">Sua Comissão</span>
-                      <span className="text-sm font-mono font-bold text-green-700 italic">R$ {venc.comissao_calculada.toFixed(2)}</span>
+                      <span className="text-[8px] font-black text-green-700 uppercase">Sua Comissão</span>
+                      <span className="text-sm font-mono font-bold text-green-700">R$ {Number(venc.comissao_calculada).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
                    </div>
                    {isAdmin && venc.status !== 'Pago' && (
                      <Button 
@@ -259,10 +258,9 @@ const NotasFiscais = () => {
         </div>
       </Card>
 
-      {/* MODAL DE CADASTRO (ADMIN) */}
       {isAdmin && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-full md:max-w-md bg-white border-none shadow-2xl rounded-none p-0 overflow-y-auto max-h-screen">
+          <DialogContent className="max-w-full md:max-w-md bg-white border-none shadow-2xl rounded-none p-0 overflow-y-auto max-h-[90vh]">
             <DialogHeader className="p-6 bg-[#0A3D73] sticky top-0 z-10">
               <DialogTitle className="text-white text-xs font-bold flex items-center gap-3 uppercase tracking-widest">
                 <ReceiptText size={18} /> Lançar Nota Fiscal
@@ -280,9 +278,9 @@ const NotasFiscais = () => {
                   <Select value={formData.numero_parcelas} onValueChange={(v) => setFormData({...formData, numero_parcelas: v})}>
                     <SelectTrigger className={sapSelectTrigger}><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-white rounded-none border-slate-300">
-                      <SelectItem value="1" className="text-xs cursor-pointer">1 parcela</SelectItem>
-                      <SelectItem value="2" className="text-xs cursor-pointer">2 parcelas</SelectItem>
-                      <SelectItem value="3" className="text-xs cursor-pointer">3 parcelas</SelectItem>
+                      <SelectItem value="1" className="text-xs cursor-pointer font-sans">1 parcela</SelectItem>
+                      <SelectItem value="2" className="text-xs cursor-pointer font-sans">2 parcelas</SelectItem>
+                      <SelectItem value="3" className="text-xs cursor-pointer font-sans">3 parcelas</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -294,7 +292,7 @@ const NotasFiscais = () => {
                   <SelectTrigger className={sapSelectTrigger}><SelectValue placeholder="Selecione o pedido" /></SelectTrigger>
                   <SelectContent className="bg-white rounded-none border-slate-300 max-h-60 overflow-y-auto">
                     {pedidos.map(p => (
-                      <SelectItem key={p.id} value={p.id.toString()} className="text-[10px] uppercase font-bold cursor-pointer">
+                      <SelectItem key={p.id} value={p.id.toString()} className="text-[10px] uppercase font-bold cursor-pointer font-sans">
                         {p.numero_pedido_fabrica} - {p.cliente?.razao_social || p.cliente_nome}
                       </SelectItem>
                     ))}

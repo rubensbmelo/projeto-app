@@ -56,11 +56,16 @@ class ItemPedido(BaseModel):
     peso_calculado: float
 
 class PedidoSchema(BaseModel):
-    cliente_id: str
-    itens: List[ItemPedido]
-    status: str = "Pendente"
+    cliente_id: Optional[str] = ""
+    cliente_nome: str
+    item_nome: str
+    itens: Optional[List[ItemPedido]] = []
+    status: str = "PENDENTE"
     valor_total: float = 0.0
     peso_total: float = 0.0
+    data_entrega: Optional[str] = ""
+    numero_fabrica: Optional[str] = ""
+    condicao_pagamento: Optional[str] = ""
 
 # --- ROTA DE AUTENTICAÇÃO ---
 
@@ -80,7 +85,7 @@ async def login(data: dict = Body(...)):
 async def get_me():
     return {"nome": "Administrador", "email": "admin@admin.com", "role": "admin"}
 
-# --- 5. Rotas de MATERIAIS (Agora com Editar e Deletar) ---
+# --- 5. Rotas de MATERIAIS ---
 
 @app.get("/api/materiais")
 async def listar_materiais():
@@ -104,11 +109,11 @@ async def deletar_material(material_id: str):
     await db.materiais.delete_one({"_id": ObjectId(material_id)})
     return {"message": "Material removido!"}
 
-# --- 6. Rotas de PEDIDOS ---
+# --- 6. Rotas de PEDIDOS (Atualizadas) ---
 
 @app.get("/api/pedidos")
 async def listar_pedidos():
-    pedidos = await db.pedidos.find().to_list(length=100)
+    pedidos = await db.pedidos.find().to_list(length=500)
     for p in pedidos:
         p["id"] = str(p.pop("_id"))
     return pedidos
@@ -117,6 +122,20 @@ async def listar_pedidos():
 async def criar_pedido(pedido: PedidoSchema):
     result = await db.pedidos.insert_one(pedido.dict())
     return {"id": str(result.inserted_id), "message": "Pedido registrado!"}
+
+@app.put("/api/pedidos/{pedido_id}")
+async def atualizar_pedido(pedido_id: str, pedido: PedidoSchema):
+    # Converte o ID para ObjectId do Mongo e atualiza todos os campos enviados
+    await db.pedidos.update_one(
+        {"_id": ObjectId(pedido_id)}, 
+        {"$set": pedido.dict()}
+    )
+    return {"message": "Pedido atualizado com sucesso!"}
+
+@app.delete("/api/pedidos/{pedido_id}")
+async def deletar_pedido(pedido_id: str):
+    await db.pedidos.delete_one({"_id": ObjectId(pedido_id)})
+    return {"message": "Pedido removido!"}
 
 # --- 7. Rotas de CLIENTES ---
 
@@ -144,4 +163,5 @@ async def deletar_cliente(cliente_id: str):
 
 if __name__ == "__main__":
     import uvicorn
+    # Porta padrão 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)

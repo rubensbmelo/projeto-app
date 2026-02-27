@@ -6,19 +6,19 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Package, Search, Plus, X, Check } from 'lucide-react';
+import { Package, Plus, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Pedidos = () => {
   const { isAdmin } = useAuth();
   const [pedidos, setPedidos] = useState([]);
+  const [materiais, setMateriais] = useState([]); // ADICIONADO: Lista de materiais (FEs)
+  const [clientesBase, setClientesBase] = useState([]); // ADICIONADO: Lista oficial de clientes
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPedido, setEditingPedido] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchDate, setSearchDate] = useState('');
   
-  // Estados para o Autocomplete de Cliente
   const [clienteInput, setClienteInput] = useState('');
   const [showClientesRef, setShowClientesRef] = useState(false);
 
@@ -27,7 +27,7 @@ const Pedidos = () => {
     item_nome: '',
     quantidade: '',
     data_entrega: '',
-    numero_fabrica: '', // Este é o nosso FE
+    numero_fabrica: '', 
     numero_oc: '',
     condicao_pagamento: '',
     valor_total: '',
@@ -35,31 +35,56 @@ const Pedidos = () => {
     status: 'PENDENTE'
   });
 
-  useEffect(() => { fetchPedidos(); }, []);
+  // CARREGAR TUDO DO BANCO AO INICIAR
+  useEffect(() => { 
+    const fetchData = async () => {
+      try {
+        const [resPedidos, resMateriais, resClientes] = await Promise.all([
+          api.get('/pedidos'),
+          api.get('/api/materiais'), // Ajuste a rota se necessário
+          api.get('/api/clientes')   // Ajuste a rota se necessário
+        ]);
+        setPedidos(Array.isArray(resPedidos.data) ? resPedidos.data : []);
+        setMateriais(Array.isArray(resMateriais.data) ? resMateriais.data : []);
+        setClientesBase(Array.isArray(resClientes.data) ? resClientes.data : []);
+      } catch (error) {
+        toast.error('Erro ao sincronizar dados');
+      } finally { setLoading(false); }
+    };
+    fetchData();
+  }, []);
 
   const fetchPedidos = async () => {
     try {
       const response = await api.get('/pedidos');
       setPedidos(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      toast.error('Erro ao carregar pedidos');
-    } finally { setLoading(false); }
+    } catch (error) { toast.error('Erro ao carregar pedidos'); }
   };
 
-  // Lista de clientes únicos para o Autocomplete (extraída dos pedidos existentes)
+  // Lista de clientes para o Autocomplete (Unindo base oficial + pedidos antigos)
   const listaClientes = useMemo(() => {
-    const nomes = pedidos.map(p => p.cliente_nome?.toUpperCase()).filter(Boolean);
-    return [...new Set(nomes)].sort();
-  }, [pedidos]);
+    const oficiais = clientesBase.map(c => c.nome?.toUpperCase());
+    const antigos = pedidos.map(p => p.cliente_nome?.toUpperCase());
+    const todos = [...oficiais, ...antigos].filter(Boolean);
+    return [...new Set(todos)].sort();
+  }, [clientesBase, pedidos]);
 
-  // Função para simular a busca de Produto pelo FE
-  // Na vida real, você pode criar uma tabela de 'Produtos' no banco e buscar via API
+  // CORREÇÃO: Busca Produto pelo FE na lista de MATERIAIS
   const buscarProdutoPorFE = (fe) => {
-    const pedidoEncontrado = pedidos.find(p => p.numero_fabrica === fe);
-    if (pedidoEncontrado) {
-      setFormData(prev => ({ ...prev, item_nome: pedidoEncontrado.item_nome, numero_fabrica: fe }));
-    } else {
-      setFormData(prev => ({ ...prev, numero_fabrica: fe }));
+    const valor = fe.toUpperCase();
+    setFormData(prev => ({ ...prev, numero_fabrica: valor }));
+
+    // Procura o material que tenha esse número_fe ou código
+    const materialEncontrado = materiais.find(m => 
+      (m.numero_fe && m.numero_fe.toUpperCase() === valor) || 
+      (m.codigo && m.codigo.toUpperCase() === valor)
+    );
+
+    if (materialEncontrado) {
+      setFormData(prev => ({ 
+        ...prev, 
+        item_nome: materialEncontrado.nome || materialEncontrado.descricao 
+      }));
     }
   };
 
@@ -92,9 +117,7 @@ const Pedidos = () => {
       setDialogOpen(false);
       resetForm();
       fetchPedidos();
-    } catch (error) {
-      toast.error('Erro ao salvar pedido');
-    }
+    } catch (error) { toast.error('Erro ao salvar pedido'); }
   };
 
   const handleEdit = (p) => {
@@ -133,11 +156,10 @@ const Pedidos = () => {
            (p.item_nome?.toLowerCase().includes(termo));
   });
 
-  const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-10 outline-none transition-all w-full text-xs font-bold uppercase";
+  const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-10 outline-none transition-all w-full text-xs font-bold uppercase px-3";
 
   return (
     <div className="p-4 md:p-8 bg-[#E9EEF2] min-h-screen font-sans antialiased text-slate-800 text-left">
-      {/* HEADER */}
       <div className="flex justify-between items-center mb-6 border-b-2 border-blue-900 pb-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 uppercase">Gestão Comercial</h1>
@@ -148,7 +170,6 @@ const Pedidos = () => {
         </Button>
       </div>
 
-      {/* TABELA PRINCIPAL */}
       <Card className="border border-slate-300 rounded-none bg-white shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full table-auto border-collapse">
@@ -157,9 +178,9 @@ const Pedidos = () => {
                 <th className="px-3 py-3 border-r border-gray-600 text-left">Cliente</th>
                 <th className="px-3 py-3 border-r border-gray-600 text-center">FE</th>
                 <th className="px-3 py-3 border-r border-gray-600 text-left">OC Cliente</th>
-                <th className="px-3 py-3 border-r border-gray-600 text-left">Produto / Item</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-left">Produto</th>
                 <th className="px-3 py-3 border-r border-gray-600 text-center">Data</th>
-                <th className="px-3 py-3 border-r border-gray-600 text-center">Peso (KG)</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-center">Peso</th>
                 <th className="px-3 py-3 border-r border-gray-600 text-center">Qtde</th>
                 <th className="px-3 py-3 border-r border-gray-600 text-right">R$ / KG</th>
                 <th className="px-3 py-3 border-r border-gray-600 text-right">Total</th>
@@ -170,13 +191,15 @@ const Pedidos = () => {
               {filteredPedidos.map((p) => (
                 <tr key={p.id} onClick={() => handleEdit(p)} className="hover:bg-blue-50 cursor-pointer text-[11px] text-slate-700">
                   <td className="px-3 py-2 border-r border-gray-100 uppercase font-black">{p.cliente_nome || '---'}</td>
-                  <td className="px-3 py-2 border-r border-gray-100 text-center font-mono font-bold text-blue-700 bg-blue-50/20">{p.numero_fabrica || '---'}</td>
+                  <td className="px-3 py-2 border-r border-gray-100 text-center font-mono font-bold text-blue-700">{p.numero_fabrica || '---'}</td>
                   <td className="px-3 py-2 border-r border-gray-100 font-bold text-amber-700">{p.numero_oc || '---'}</td>
                   <td className="px-3 py-2 border-r border-gray-100 font-bold uppercase">{p.item_nome || '---'}</td>
                   <td className="px-3 py-2 border-r border-gray-100 text-center">{p.data_entrega ? new Date(p.data_entrega).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '---'}</td>
                   <td className="px-3 py-2 border-r border-gray-100 text-center font-bold">{formatarBR(p.peso_total)}</td>
                   <td className="px-3 py-2 border-r border-gray-100 text-center font-bold">{Number(p.quantidade || 0).toLocaleString('pt-BR')}</td>
-                  <td className="px-3 py-2 border-r border-gray-100 text-right font-black text-blue-600">{formatarBR((p.valor_total/p.peso_total))}</td>
+                  <td className="px-3 py-2 border-r border-gray-100 text-right font-black text-blue-600">
+                    {p.peso_total > 0 ? formatarBR(limparParaNumero(p.valor_total) / limparParaNumero(p.peso_total)) : '0,00'}
+                  </td>
                   <td className="px-3 py-2 border-r border-gray-100 text-right font-bold bg-slate-50/50">R$ {formatarBR(p.valor_total)}</td>
                   <td className="px-3 py-2 text-center">
                     <span className={`px-2 py-0.5 text-[9px] font-black border ${p.status === 'FATURADO' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{p.status}</span>
@@ -188,7 +211,6 @@ const Pedidos = () => {
         </div>
       </Card>
 
-      {/* MODAL DE CADASTRO COM CASCATA */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl bg-white rounded-none p-0 overflow-hidden border-none shadow-2xl">
           <DialogHeader className="p-6 bg-[#0A3D73] text-white text-left">
@@ -197,9 +219,8 @@ const Pedidos = () => {
           <form onSubmit={handleSubmit} className="p-6 space-y-4 text-left">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-              {/* CLIENTE COM AUTOCOMPLETE */}
               <div className="space-y-1 relative">
-                <Label className="text-[10px] font-bold uppercase text-slate-500">Cliente (Digite para buscar)</Label>
+                <Label className="text-[10px] font-bold uppercase text-slate-500">Cliente (Cascata)</Label>
                 <Input 
                   value={clienteInput} 
                   onChange={e => {
@@ -209,10 +230,10 @@ const Pedidos = () => {
                   }}
                   onFocus={() => setShowClientesRef(true)}
                   className={sapInput}
-                  placeholder="NOME DO CLIENTE..."
+                  placeholder="DIGITE O NOME..."
                 />
                 {showClientesRef && clienteInput.length > 0 && (
-                  <div className="absolute z-50 w-full bg-white border border-slate-300 shadow-xl max-h-40 overflow-y-auto mt-1">
+                  <div className="absolute z-[99] w-full bg-white border border-slate-300 shadow-xl max-h-40 overflow-y-auto mt-1">
                     {listaClientes.filter(c => c.includes(clienteInput.toUpperCase())).map(cliente => (
                       <div 
                         key={cliente}
@@ -221,7 +242,7 @@ const Pedidos = () => {
                           setClienteInput(cliente);
                           setShowClientesRef(false);
                         }}
-                        className="p-2 text-[10px] font-bold uppercase hover:bg-blue-100 cursor-pointer border-b border-slate-100 flex justify-between items-center"
+                        className="p-2 text-[10px] font-bold uppercase hover:bg-blue-100 cursor-pointer border-b border-slate-100 flex justify-between items-center bg-white"
                       >
                         {cliente} <Check size={12} className="text-blue-600"/>
                       </div>
@@ -230,20 +251,18 @@ const Pedidos = () => {
                 )}
               </div>
 
-              {/* FE (REFERÊNCIA FÁBRICA) */}
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase text-blue-700">FE (Ref. Fábrica)</Label>
+                <Label className="text-[10px] font-bold uppercase text-blue-700">FE (Puxa Produto)</Label>
                 <Input 
                   value={formData.numero_fabrica} 
-                  onChange={e => buscarProdutoPorFE(e.target.value.toUpperCase())} 
+                  onChange={e => buscarProdutoPorFE(e.target.value)} 
                   className={`${sapInput} border-blue-200 bg-blue-50/30`} 
                   placeholder="EX: 1234/26"
                 />
               </div>
 
-              {/* PRODUTO (PREENCHIDO PELO FE) */}
               <div className="col-span-2 space-y-1">
-                <Label className="text-[10px] font-bold uppercase text-slate-500">Produto / Item (Auto-preenchido pelo FE)</Label>
+                <Label className="text-[10px] font-bold uppercase text-slate-500">Descrição do Produto</Label>
                 <Input value={formData.item_nome} onChange={e => setFormData({...formData, item_nome: e.target.value.toUpperCase()})} required className={sapInput} />
               </div>
 

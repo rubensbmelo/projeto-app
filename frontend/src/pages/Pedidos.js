@@ -6,7 +6,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Edit, Package, Search, CheckCircle2, Clock, Hash } from 'lucide-react';
+// ADICIONADOS Scale E Hash ABAIXO PARA EVITAR TELA BRANCA
+import { Edit, Package, Search, CheckCircle2, Clock, Hash, Scale, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Pedidos = () => {
@@ -20,7 +21,7 @@ const Pedidos = () => {
   const [formData, setFormData] = useState({
     cliente_nome: '',
     item_nome: '',
-    quantidade: '', // NOVO
+    quantidade: '',
     data_entrega: '',
     numero_fabrica: '',
     condicao_pagamento: '',
@@ -56,7 +57,7 @@ const Pedidos = () => {
     e.preventDefault();
     const payload = {
       ...formData,
-      quantidade: parseInt(formData.quantidade) || 0, // NOVO: Convertendo para inteiro
+      quantidade: parseInt(formData.quantidade) || 0,
       valor_total: limparParaNumero(formData.valor_total),
       peso_total: limparParaNumero(formData.peso_total)
     };
@@ -82,7 +83,7 @@ const Pedidos = () => {
     setFormData({
       cliente_nome: p.cliente_nome || '',
       item_nome: p.item_nome || '',
-      quantidade: p.quantidade || '', // NOVO
+      quantidade: p.quantidade || '',
       data_entrega: p.data_entrega || '',
       numero_fabrica: p.numero_fabrica || '',
       condicao_pagamento: p.condicao_pagamento || '',
@@ -118,8 +119,18 @@ const Pedidos = () => {
         </div>
         
         <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="bg-[#0A3D73] text-white rounded-none px-8 font-bold text-[10px] uppercase py-6 shadow-md">
-           Novo Pedido
+           <Plus size={16} className="mr-2"/> Novo Pedido
         </Button>
+      </div>
+
+      <div className="mb-4 relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+        <Input 
+          placeholder="BUSCAR POR CLIENTE OU REF. FÁBRICA..." 
+          className={`${sapInput} pl-10 w-full md:w-96 text-[10px] uppercase font-bold`}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
       <Card className="border border-slate-300 rounded-none bg-white shadow-xl overflow-hidden">
@@ -159,7 +170,7 @@ const Pedidos = () => {
                       {p.data_entrega ? new Date(p.data_entrega).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '---'}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-black text-slate-900 uppercase text-[12px]">{p.cliente_nome?.split(' ')[0]}</div>
+                      <div className="font-black text-slate-900 uppercase text-[12px]">{p.cliente_nome ? p.cliente_nome.split(' ')[0] : '---'}</div>
                       <div className="text-[10px] text-blue-600 font-bold uppercase italic">{p.item_nome}</div>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -185,16 +196,15 @@ const Pedidos = () => {
         </div>
       </Card>
 
-      {/* MODAL DE PEDIDO ATUALIZADO */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl bg-white rounded-none p-0 overflow-hidden border-none shadow-2xl font-sans">
+        <DialogContent className="max-w-2xl bg-white rounded-none p-0 overflow-hidden border-none shadow-2xl font-sans text-slate-800">
           <DialogHeader className="p-6 bg-[#0A3D73] text-white">
             <DialogTitle className="text-xs uppercase tracking-widest flex items-center gap-2">
               <Package size={16}/> Detalhes do Pedido Comercial
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="p-6 space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4 text-left">
               <div className="space-y-1">
                 <Label className="text-[10px] font-bold uppercase text-slate-500">Cliente</Label>
                 <Input value={formData.cliente_nome} onChange={e => setFormData({...formData, cliente_nome: e.target.value})} required className={sapInput} />
@@ -204,7 +214,6 @@ const Pedidos = () => {
                 <Input value={formData.item_nome} onChange={e => setFormData({...formData, item_nome: e.target.value})} required className={sapInput} />
               </div>
 
-              {/* GRUPO DE QUANTIDADE E PESO - DESTAQUE */}
               <div className="col-span-2 grid grid-cols-2 gap-4 bg-blue-50/50 p-4 border border-blue-100">
                 <div className="space-y-1">
                     <Label className="text-[10px] font-black uppercase text-blue-800 flex items-center gap-1">
@@ -242,7 +251,7 @@ const Pedidos = () => {
                   <select 
                     value={formData.status} 
                     onChange={e => setFormData({...formData, status: e.target.value})}
-                    className="w-full h-10 border border-slate-300 px-3 text-xs font-bold uppercase outline-none focus:border-blue-800 transition-all"
+                    className="w-full h-10 border border-slate-300 px-3 text-xs font-bold uppercase outline-none focus:border-blue-800 transition-all bg-white"
                   >
                     <option value="PENDENTE">⏳ Pendente</option>
                     <option value="FATURADO">✅ Faturado</option>
@@ -251,8 +260,8 @@ const Pedidos = () => {
             </div>
 
             <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-none text-[10px] font-bold uppercase px-8">Cancelar</Button>
-              <Button type="submit" className="bg-[#0A3D73] text-white px-10 rounded-none text-[10px] font-bold uppercase py-6 shadow-lg">Gravar no Sistema</Button>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-none text-[10px] font-bold uppercase px-8 border-slate-300">Cancelar</Button>
+              <Button type="submit" className="bg-[#0A3D73] text-white px-10 rounded-none text-[10px] font-bold uppercase py-6 shadow-lg hover:bg-blue-800">Gravar no Sistema</Button>
             </div>
           </form>
         </DialogContent>

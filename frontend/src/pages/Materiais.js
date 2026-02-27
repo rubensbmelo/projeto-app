@@ -6,8 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Edit, Trash2, Search, MoreVertical, Package, Scale, DollarSign, Percent, Lock, Calculator } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, MoreVertical, Package } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
@@ -22,7 +21,12 @@ const Materiais = () => {
   const [searchTerm, setSearchTerm] = useState('');
   
   const [formData, setFormData] = useState({
-    codigo: '', descricao: '', segmento: 'CAIXA', peso_unit: '', comissao: '', preco_unit: ''
+    numero_fe: '', // ALTERADO: agora numero_fe
+    descricao: '', 
+    segmento: 'CAIXA', 
+    peso_unit: '', 
+    comissao: '', 
+    preco_unit: ''
   });
 
   useEffect(() => { fetchMateriais(); }, []);
@@ -36,15 +40,12 @@ const Materiais = () => {
     } finally { setLoading(false); }
   };
 
-  // Limpa o formato brasileiro (7.560,00) para número puro (7560.00)
   const limparParaNumero = (valor) => {
     if (valor === undefined || valor === null || valor === '') return 0;
-    // Remove pontos de milhar e troca vírgula decimal por ponto
     const limpo = String(valor).replace(/\./g, '').replace(',', '.');
     return parseFloat(limpo) || 0;
   };
 
-  // Formata números para o padrão brasileiro: 7.560,00
   const formatarMoedaBR = (valor) => {
     if (valor === undefined || valor === null) return "0,00";
     return new Intl.NumberFormat('pt-BR', {
@@ -56,8 +57,6 @@ const Materiais = () => {
   const calcularFatorForm = () => {
     const peso = limparParaNumero(formData.peso_unit);
     const precoMilheiro = limparParaNumero(formData.preco_unit);
-    
-    // Fator = Preço Milheiro / (Peso Unitário * 1000)
     if (peso > 0) {
       const fator = precoMilheiro / (peso * 1000);
       return formatarMoedaBR(fator);
@@ -71,8 +70,9 @@ const Materiais = () => {
 
     try {
       const data = {
+        numero_fe: formData.numero_fe, // ENVIANDO COMO numero_fe
+        codigo: formData.numero_fe,    // MANTIDO PARA COMPATIBILIDADE COM BACKEND
         nome: formData.descricao,
-        codigo: formData.codigo,
         descricao: formData.descricao,
         segmento: formData.segmento,
         peso_unit: limparParaNumero(formData.peso_unit),
@@ -91,16 +91,15 @@ const Materiais = () => {
       resetForm();
       fetchMateriais();
     } catch (error) {
-      toast.error('Erro ao salvar. Verifique os valores.');
+      toast.error('Erro ao salvar');
     }
   };
 
   const handleEdit = (material) => {
     if (!isAdmin) return; 
     setEditingMaterial(material);
-    // Ao editar, convertemos os pontos do banco para vírgulas para o usuário
     setFormData({
-      codigo: material.codigo || '',
+      numero_fe: material.numero_fe || material.codigo || '', // PUXA FE OU CODIGO
       descricao: material.nome || material.descricao || '',
       segmento: material.segmento || 'CAIXA',
       peso_unit: String(material.peso_unit || '').replace('.', ','),
@@ -124,74 +123,72 @@ const Materiais = () => {
   };
 
   const resetForm = () => {
-    setFormData({ codigo: '', descricao: '', segmento: 'CAIXA', peso_unit: '', comissao: '', preco_unit: '' });
+    setFormData({ numero_fe: '', descricao: '', segmento: 'CAIXA', peso_unit: '', comissao: '', preco_unit: '' });
     setEditingMaterial(null);
   };
 
   const filteredMateriais = materiais.filter(m =>
     (m.nome?.toLowerCase() || m.descricao?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-    (m.codigo?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+    (m.numero_fe?.toLowerCase() || m.codigo?.toLowerCase() || "").includes(searchTerm.toLowerCase())
   );
 
-  const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-12 md:h-10 outline-none transition-all";
+  const sapInput = "bg-white border-slate-300 focus:border-blue-800 focus:ring-0 rounded-none h-10 outline-none transition-all";
 
   return (
-    <div className="p-4 md:p-8 bg-[#E9EEF2] min-h-screen font-sans antialiased text-slate-800">
+    <div className="p-4 md:p-8 bg-[#E9EEF2] min-h-screen font-sans text-left">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b-2 border-blue-900 pb-4 gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 uppercase tracking-tight flex items-center gap-3">
-            Produtos {!isAdmin && <Lock size={18} className="text-slate-400" />}
-          </h1>
-        </div>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900 uppercase tracking-tight flex items-center gap-3">
+          Catálogo Base (FE)
+        </h1>
         
         {isAdmin && (
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button className="bg-[#0A3D73] text-white rounded-none px-8 font-bold text-[10px] uppercase py-6">
-                <Plus size={16} className="mr-2" /> Novo Material
+                <Plus size={16} className="mr-2" /> Novo Material (FE)
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl bg-white rounded-none p-0">
-              <DialogHeader className="p-6 bg-[#0A3D73] text-white">
+              <DialogHeader className="p-6 bg-[#0A3D73] text-white text-left">
                 <DialogTitle className="text-xs uppercase tracking-widest flex items-center gap-2">
-                  <Package size={16}/> {editingMaterial ? 'Modificar Material' : 'Novo Registro'}
+                  <Package size={16}/> {editingMaterial ? 'Editar FE' : 'Registrar Novo FE'}
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="p-6 space-y-6">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-1.5">
-                      <Label className="text-[#0A3D73] font-bold text-[10px] uppercase">Código</Label>
-                      <Input value={formData.codigo} onChange={(e) => setFormData({ ...formData, codigo: e.target.value })} required className={sapInput} />
+                      <Label className="text-[#0A3D73] font-bold text-[10px] uppercase">Número do FE</Label>
+                      <Input value={formData.numero_fe} onChange={(e) => setFormData({ ...formData, numero_fe: e.target.value.toUpperCase() })} required className={sapInput} placeholder="Ex: 1234/26" />
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
-                      <Label className="text-[#0A3D73] font-bold text-[10px] uppercase">Descrição Técnica</Label>
-                      <Input value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} required className={sapInput} />
+                      <Label className="text-[#0A3D73] font-bold text-[10px] uppercase">Nome do Produto (Vincular ao Pedido)</Label>
+                      <Input value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value.toUpperCase() })} required className={sapInput} />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 md:col-span-2 gap-4 p-5 bg-slate-50 border border-slate-200">
                       <div className="space-y-1.5">
                         <Label className="text-slate-500 font-bold text-[9px] uppercase">Peso Unit (KG)</Label>
-                        <Input value={formData.peso_unit} onChange={(e) => setFormData({ ...formData, peso_unit: e.target.value })} className={sapInput} placeholder="0,00" />
+                        <Input value={formData.peso_unit} onChange={(e) => setFormData({ ...formData, peso_unit: e.target.value })} className={sapInput} />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-amber-600 font-bold text-[9px] uppercase">Preço Milheiro</Label>
-                        <Input value={formData.preco_unit} onChange={(e) => setFormData({ ...formData, preco_unit: e.target.value })} className={sapInput} placeholder="7.560,00" />
+                        <Label className="text-amber-600 font-bold text-[9px] uppercase">R$ Milheiro</Label>
+                        <Input value={formData.preco_unit} onChange={(e) => setFormData({ ...formData, preco_unit: e.target.value })} className={sapInput} />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-green-700 font-bold text-[9px] uppercase">Comissão %</Label>
-                        <Input value={formData.comissao} onChange={(e) => setFormData({ ...formData, comissao: e.target.value })} className={sapInput} placeholder="0,00" />
+                        <Input value={formData.comissao} onChange={(e) => setFormData({ ...formData, comissao: e.target.value })} className={sapInput} />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-blue-700 font-bold text-[9px] uppercase">Fator R$/KG</Label>
-                        <div className="h-10 flex items-center px-3 bg-blue-50 border border-blue-200 font-bold text-xs text-blue-800">
+                        <div className="h-10 flex items-center px-3 bg-blue-50 border border-blue-200 font-black text-xs text-blue-800">
                           R$ {calcularFatorForm()}
                         </div>
                       </div>
                     </div>
                   </div>
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-none uppercase text-[10px] font-bold">Descartar</Button>
-                  <Button type="submit" className="bg-[#0A3D73] text-white px-10 rounded-none text-[10px] font-bold uppercase">Gravar Registro</Button>
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-none uppercase text-[10px]">Cancelar</Button>
+                  <Button type="submit" className="bg-[#0A3D73] text-white px-10 rounded-none text-[10px] font-bold uppercase py-6">Gravar Material</Button>
                 </div>
               </form>
             </DialogContent>
@@ -202,8 +199,8 @@ const Materiais = () => {
       <div className="relative mb-6 bg-white border border-slate-300 p-1 flex items-center">
         <Search className="ml-4 text-slate-400" size={18} />
         <Input 
-          placeholder="Buscar material..." 
-          className="border-none focus:ring-0 text-sm bg-transparent w-full"
+          placeholder="BUSCAR POR FE OU DESCRIÇÃO..." 
+          className="border-none focus:ring-0 text-xs font-bold bg-transparent w-full uppercase"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -211,14 +208,14 @@ const Materiais = () => {
 
       <Card className="border border-slate-300 rounded-none bg-white shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-[#0A3D73] text-white text-[10px] font-bold uppercase text-left">
+          <table className="w-full text-left">
+            <thead className="bg-[#555555] text-white text-[10px] font-bold uppercase">
               <tr>
-                <th className="px-6 py-4">Código</th>
-                <th className="px-6 py-4">Descrição</th>
-                <th className="px-6 py-4 text-right">Peso Unit.</th>
-                <th className="px-6 py-4 text-right">Preço Milheiro</th>
-                <th className="px-6 py-4 text-right bg-blue-800/50">Fator R$/KG</th>
+                <th className="px-6 py-4 border-r border-gray-600">FE</th>
+                <th className="px-6 py-4 border-r border-gray-600">Descrição Técnica</th>
+                <th className="px-6 py-4 text-right border-r border-gray-600">Peso Unit.</th>
+                <th className="px-6 py-4 text-right border-r border-gray-600">Preço Milheiro</th>
+                <th className="px-6 py-4 text-right bg-blue-800/20 border-r border-gray-600">R$ / KG</th>
                 <th className="px-6 py-4 text-right">Comissão</th>
                 {isAdmin && <th className="px-6 py-4"></th>}
               </tr>
@@ -229,28 +226,24 @@ const Materiais = () => {
                 const pr = m.preco_unit || 0;
                 const fator = p > 0 ? (pr / (p * 1000)) : 0;
                 return (
-                  <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 font-mono font-bold text-xs text-blue-900">{m.codigo}</td>
-                    <td className="px-6 py-4 font-bold text-[13px] uppercase">
-                      {m.nome || m.descricao}
-                      <div className="text-[9px] text-slate-400 font-normal">{m.segmento}</div>
-                    </td>
-                    <td className="px-6 py-4 text-right text-xs text-slate-500">{formatarMoedaBR(m.peso_unit)} kg</td>
-                    <td className="px-6 py-4 text-right font-bold text-slate-900">R$ {formatarMoedaBR(m.preco_unit)}</td>
-                    <td className="px-6 py-4 text-right font-black text-blue-700 bg-blue-50/30">R$ {formatarMoedaBR(fator)}</td>
+                  <tr key={m.id} className="hover:bg-blue-50/30 transition-colors text-[11px]">
+                    <td className="px-6 py-4 font-mono font-bold text-blue-900">{m.numero_fe || m.codigo}</td>
+                    <td className="px-6 py-4 font-bold uppercase">{m.nome || m.descricao}</td>
+                    <td className="px-6 py-4 text-right text-slate-500 font-bold">{formatarMoedaBR(m.peso_unit)} kg</td>
+                    <td className="px-6 py-4 text-right font-bold">R$ {formatarMoedaBR(m.preco_unit)}</td>
+                    <td className="px-6 py-4 text-right font-black text-blue-700 bg-blue-50/50">R$ {formatarMoedaBR(fator)}</td>
                     <td className="px-6 py-4 text-right font-bold text-green-700">{formatarMoedaBR(m.comissao)}%</td>
-                    
                     {isAdmin && (
                       <td className="px-6 py-4 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0"><MoreVertical size={16} /></Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-white rounded-none border-slate-300">
-                            <DropdownMenuItem onClick={() => handleEdit(m)} className="text-[10px] font-bold uppercase gap-2 cursor-pointer">
+                          <DropdownMenuContent align="end" className="bg-white rounded-none border-slate-300 shadow-xl">
+                            <DropdownMenuItem onClick={() => handleEdit(m)} className="text-[10px] font-bold uppercase gap-2 cursor-pointer p-3">
                               <Edit size={14} /> Alterar
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(m.id)} className="text-[10px] font-bold uppercase gap-2 cursor-pointer text-red-600">
+                            <DropdownMenuItem onClick={() => handleDelete(m.id)} className="text-[10px] font-bold uppercase gap-2 cursor-pointer text-red-600 p-3">
                               <Trash2 size={14} /> Excluir
                             </DropdownMenuItem>
                           </DropdownMenuContent>

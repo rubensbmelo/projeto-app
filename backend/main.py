@@ -29,11 +29,12 @@ if not MONGODB_URL:
 client = AsyncIOMotorClient(MONGODB_URL)
 db = client.erp_database 
 
-# 4. Schemas (Modelos de Dados)
+# 4. Schemas (Modelos de Dados) - ATUALIZADOS
 
 class MaterialSchema(BaseModel):
     nome: str
-    codigo: Optional[str] = ""
+    numero_fe: Optional[str] = ""  # O elo principal com Pedidos
+    codigo: Optional[str] = ""     # Mantido para compatibilidade
     descricao: Optional[str] = ""
     segmento: Optional[str] = ""
     preco_unit: float = 0.0
@@ -64,7 +65,8 @@ class PedidoSchema(BaseModel):
     valor_total: float = 0.0
     peso_total: float = 0.0
     data_entrega: Optional[str] = ""
-    numero_fabrica: Optional[str] = ""
+    numero_fabrica: Optional[str] = "" # No React estamos usando como FE
+    numero_oc: Optional[str] = ""      # Novo campo de Ordem de Compra
     condicao_pagamento: Optional[str] = ""
 
 # --- ROTA DE AUTENTICAÇÃO ---
@@ -109,7 +111,7 @@ async def deletar_material(material_id: str):
     await db.materiais.delete_one({"_id": ObjectId(material_id)})
     return {"message": "Material removido!"}
 
-# --- 6. Rotas de PEDIDOS (Atualizadas) ---
+# --- 6. Rotas de PEDIDOS ---
 
 @app.get("/api/pedidos")
 async def listar_pedidos():
@@ -125,7 +127,6 @@ async def criar_pedido(pedido: PedidoSchema):
 
 @app.put("/api/pedidos/{pedido_id}")
 async def atualizar_pedido(pedido_id: str, pedido: PedidoSchema):
-    # Converte o ID para ObjectId do Mongo e atualiza todos os campos enviados
     await db.pedidos.update_one(
         {"_id": ObjectId(pedido_id)}, 
         {"$set": pedido.dict()}
@@ -163,5 +164,4 @@ async def deletar_cliente(cliente_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    # Porta padrão 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)

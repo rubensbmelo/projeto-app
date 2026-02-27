@@ -129,11 +129,11 @@ const Pedidos = () => {
 
       <div className="flex flex-col md:flex-row gap-2 mb-6 items-end">
         <div className="flex-1 w-full relative">
-          <Label className="text-[9px] font-bold text-slate-500 uppercase ml-1">Pesquisar Cliente / Fábrica</Label>
+          <Label className="text-[9px] font-bold text-slate-500 uppercase ml-1">Pesquisar Cliente / Fábrica / Item</Label>
           <div className="relative mt-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <Input 
-              placeholder="DIGITE O NOME OU NÚMERO..." 
+              placeholder="DIGITE A BUSCA..." 
               className={`${sapInput} pl-10 w-full text-[10px] uppercase font-bold`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -158,81 +158,93 @@ const Pedidos = () => {
 
       <Card className="border border-slate-300 rounded-none bg-white shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-[#0A3D73] text-white text-[10px] font-bold uppercase text-left">
+          <table className="w-full table-auto border-collapse">
+            <thead className="bg-[#555555] text-white text-[10px] font-bold uppercase">
               <tr>
-                <th className="px-6 py-4 text-center">Ref. Fábrica</th>
-                <th className="px-6 py-4">Cliente / Item</th>
-                <th className="px-6 py-4">Entrega</th>
-                <th className="px-6 py-4 text-center">Qtd / Peso</th>
-                <th className="px-6 py-4 text-right">Valor Total</th>
-                <th className="px-6 py-4 text-right bg-blue-800/50 text-blue-100">R$ / KG</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4 text-center">Ação</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-center whitespace-nowrap">Ref. Fábrica</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-left">Produto / Item</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-left">Cliente</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-center">Data</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-center">Peso (KG)</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-center">Qtde</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-right">R$ / KG</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-right">Total Pedido</th>
+                <th className="px-3 py-3 border-r border-gray-600 text-center">Status</th>
+                <th className="px-3 py-3 text-center">Ação</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-gray-200">
               {filteredPedidos.length > 0 ? filteredPedidos.map((p) => {
-                const valor = parseFloat(p.valor_total) || 0;
-                const peso = parseFloat(p.peso_total) || 0;
-                const fatorMedio = peso > 0 ? (valor / peso) : 0;
+                const valorTotal = parseFloat(p.valor_total) || 0;
+                const pesoTotal = parseFloat(p.peso_total) || 0;
+                const qtd = parseFloat(p.quantidade) || 0;
+                const fatorMedio = pesoTotal > 0 ? (valorTotal / pesoTotal) : 0;
                 const isFaturado = p.status === 'FATURADO';
 
                 return (
-                  <tr key={p.id || Math.random()} className={`hover:bg-slate-50 transition-colors ${isFaturado ? 'opacity-60 bg-slate-50' : ''}`}>
+                  <tr key={p.id || Math.random()} className={`hover:bg-blue-50/50 text-[11px] text-slate-700 transition-colors ${isFaturado ? 'opacity-70 bg-gray-50' : ''}`}>
                     {/* 1. REF FÁBRICA */}
-                    <td className="px-6 py-4 text-center">
-                      <span className="font-mono font-bold text-xs text-slate-600">{p.numero_fabrica || '---'}</span>
+                    <td className="px-3 py-2 border-r border-gray-100 text-center font-mono font-bold">
+                      {p.numero_fabrica || '---'}
                     </td>
 
-                    {/* 2. CLIENTE / ITEM */}
-                    <td className="px-6 py-4">
-                      <div className="font-black text-slate-900 uppercase text-[12px]">{p.cliente_nome ? p.cliente_nome.split(' ')[0] : 'S/ NOME'}</div>
-                      <div className="text-[10px] text-blue-600 font-bold uppercase italic">{p.item_nome || 'S/ ITEM'}</div>
+                    {/* 2. PRODUTO */}
+                    <td className="px-3 py-2 border-r border-gray-100 font-bold uppercase text-blue-800">
+                      {p.item_nome || '---'}
                     </td>
 
-                    {/* 3. ENTREGA */}
-                    <td className="px-6 py-4 font-bold text-xs text-slate-600">
+                    {/* 3. CLIENTE */}
+                    <td className="px-3 py-2 border-r border-gray-100 uppercase font-medium">
+                      {p.cliente_nome || '---'}
+                    </td>
+
+                    {/* 4. DATA */}
+                    <td className="px-3 py-2 border-r border-gray-100 text-center">
                       {p.data_entrega ? new Date(p.data_entrega).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '---'}
                     </td>
 
-                    {/* 4. QUANTIDADE / PESO */}
-                    <td className="px-6 py-4 text-center">
-                        <div className="text-xs font-black text-slate-800">{p.quantidade ? Number(p.quantidade).toLocaleString('pt-BR') : '0'} un</div>
-                        <div className="text-[10px] text-slate-400 font-medium">{formatarBR(peso)} kg</div>
+                    {/* 5. PESO */}
+                    <td className="px-3 py-2 border-r border-gray-100 text-center font-bold">
+                      {formatarBR(pesoTotal)}
                     </td>
 
-                    {/* 5. VALOR TOTAL */}
-                    <td className="px-6 py-4 text-right">
-                      <div className="font-bold text-slate-900 text-sm">R$ {formatarBR(valor)}</div>
-                      <div className="text-[9px] text-slate-400 font-bold uppercase">{p.condicao_pagamento || '---'}</div>
+                    {/* 6. QTDE */}
+                    <td className="px-3 py-2 border-r border-gray-100 text-center font-bold text-slate-900">
+                      {qtd.toLocaleString('pt-BR')}
                     </td>
 
-                    {/* 6. R$ / KG */}
-                    <td className="px-6 py-4 text-right font-black text-blue-700 bg-blue-50/30">R$ {formatarBR(fatorMedio, 2)}</td>
-
-                    {/* 7. STATUS */}
-                    <td className="px-6 py-4 text-center">
-                      {isFaturado ? (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-black text-green-600 border border-green-200 bg-green-50 px-2 py-1 uppercase">
-                          <CheckCircle2 size={10}/> Faturado
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-black text-amber-600 border border-amber-200 bg-amber-50 px-2 py-1 uppercase">
-                          <Clock size={10}/> Pendente
-                        </span>
-                      )}
+                    {/* 7. R$ / KG (FATOR) */}
+                    <td className="px-3 py-2 border-r border-gray-100 text-right font-black text-blue-600">
+                      {formatarBR(fatorMedio)}
                     </td>
 
-                    {/* 8. AÇÃO */}
-                    <td className="px-6 py-4 text-center">
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(p)} className="hover:bg-blue-100 text-blue-900"><Edit size={14} /></Button>
+                    {/* 8. TOTAL PEDIDO */}
+                    <td className="px-3 py-2 border-r border-gray-100 text-right font-bold bg-slate-50/50">
+                      R$ {formatarBR(valorTotal)}
+                    </td>
+
+                    {/* 9. STATUS */}
+                    <td className="px-3 py-2 border-r border-gray-100 text-center">
+                      <span className={`px-2 py-0.5 inline-block text-[9px] font-black border ${
+                        isFaturado 
+                        ? 'bg-green-50 text-green-700 border-green-200' 
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {p.status || 'PENDENTE'}
+                      </span>
+                    </td>
+
+                    {/* 10. AÇÃO */}
+                    <td className="px-3 py-2 text-center">
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(p)} className="h-7 w-7 p-0 text-blue-600 hover:text-blue-900">
+                        <Edit size={14} />
+                      </Button>
                     </td>
                   </tr>
                 );
               }) : (
                 <tr>
-                    <td colSpan="8" className="py-12 text-center text-slate-400 font-bold uppercase text-xs italic">Nenhum registro encontrado</td>
+                    <td colSpan="10" className="py-12 text-center text-slate-400 font-bold uppercase text-xs italic">Nenhum registro encontrado</td>
                 </tr>
               )}
             </tbody>
@@ -240,12 +252,12 @@ const Pedidos = () => {
         </div>
       </Card>
 
-      {/* MODAL (MANTIDO CONFORME ORIGINAL) */}
+      {/* MODAL DE CADASTRO/EDIÇÃO */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl bg-white rounded-none p-0 overflow-hidden border-none shadow-2xl font-sans text-slate-800">
-          <DialogHeader className="p-6 bg-[#0A3D73] text-white">
+          <DialogHeader className="p-6 bg-[#0A3D73] text-white text-left">
             <DialogTitle className="text-xs uppercase tracking-widest flex items-center gap-2">
-              <Package size={16}/> Detalhes do Pedido Comercial
+              <Package size={16}/> Gestão de Pedido Comercial
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="p-6 space-y-5 text-left">
@@ -255,46 +267,56 @@ const Pedidos = () => {
                 <Input value={formData.cliente_nome} onChange={e => setFormData({...formData, cliente_nome: e.target.value})} required className={sapInput} />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase text-slate-500">Item / Especificação</Label>
+                <Label className="text-[10px] font-bold uppercase text-slate-500">Produto / Item</Label>
                 <Input value={formData.item_nome} onChange={e => setFormData({...formData, item_nome: e.target.value})} required className={sapInput} />
               </div>
+              
               <div className="col-span-2 grid grid-cols-2 gap-4 bg-blue-50/50 p-4 border border-blue-100">
                 <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-blue-800 flex items-center gap-1"><Hash size={10}/> Quantidade</Label>
+                    <Label className="text-[10px] font-black uppercase text-blue-800">Quantidade</Label>
                     <Input type="number" value={formData.quantidade} onChange={e => setFormData({...formData, quantidade: e.target.value})} className={sapInput} />
                 </div>
                 <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-blue-800 flex items-center gap-1"><Scale size={10}/> Peso (KG)</Label>
+                    <Label className="text-[10px] font-black uppercase text-blue-800">Peso Total (KG)</Label>
                     <Input value={formData.peso_total} onChange={e => setFormData({...formData, peso_total: e.target.value})} className={sapInput} />
                 </div>
               </div>
+
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase text-slate-500">Valor Total (R$)</Label>
-                <Input value={formData.valor_total} onChange={e => setFormData({...formData, valor_total: e.target.value})} className={sapInput} />
+                <Label className="text-[10px] font-bold uppercase text-slate-500 text-blue-700">Valor Total (R$)</Label>
+                <Input value={formData.valor_total} onChange={e => setFormData({...formData, valor_total: e.target.value})} className={`${sapInput} font-bold text-blue-900 border-blue-200`} />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase text-slate-500">Entrega</Label>
+                <Label className="text-[10px] font-bold uppercase text-slate-500">Data de Entrega</Label>
                 <Input type="date" value={formData.data_entrega} onChange={e => setFormData({...formData, data_entrega: e.target.value})} required className={sapInput} />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase text-slate-500">Ref. Fábrica</Label>
-                <Input value={formData.numero_fabrica} onChange={e => setFormData({...formData, numero_fabrica: e.target.value})} className={sapInput} />
+                <Label className="text-[10px] font-bold uppercase text-slate-500">Referência Fábrica</Label>
+                <Input value={formData.numero_fabrica} onChange={e => setFormData({...formData, numero_fabrica: e.target.value})} className={sapInput} placeholder="0000/00" />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase text-slate-500">Condição Pagto</Label>
+                <Label className="text-[10px] font-bold uppercase text-slate-500">Condição Pagamento</Label>
                 <Input value={formData.condicao_pagamento} onChange={e => setFormData({...formData, condicao_pagamento: e.target.value})} className={sapInput} />
               </div>
+              
               <div className="space-y-1">
-                  <Label className="text-[10px] font-bold uppercase text-slate-500">Status</Label>
-                  <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full h-10 border border-slate-300 px-3 text-xs font-bold uppercase outline-none bg-white">
-                    <option value="PENDENTE">⏳ Pendente</option>
-                    <option value="FATURADO">✅ Faturado</option>
+                  <Label className="text-[10px] font-bold uppercase text-slate-500">Status do Pedido</Label>
+                  <select 
+                    value={formData.status} 
+                    onChange={e => setFormData({...formData, status: e.target.value})}
+                    className="w-full h-10 border border-slate-300 px-3 text-xs font-bold uppercase outline-none bg-white focus:border-blue-800 transition-all"
+                  >
+                    <option value="PENDENTE">⏳ PENDENTE</option>
+                    <option value="FATURADO">✅ FATURADO</option>
                   </select>
               </div>
             </div>
-            <div className="flex justify-end gap-3 pt-6 border-t">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-none text-[10px] font-bold uppercase">Cancelar</Button>
-              <Button type="submit" className="bg-[#0A3D73] text-white px-10 rounded-none text-[10px] font-bold uppercase shadow-lg">Gravar</Button>
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-none text-[10px] font-bold uppercase px-8 border-slate-300">Cancelar</Button>
+              <Button type="submit" className="bg-[#0A3D73] text-white px-10 rounded-none text-[10px] font-bold uppercase py-6 shadow-lg hover:bg-blue-800 transition-all">
+                Gravar Pedido
+              </Button>
             </div>
           </form>
         </DialogContent>

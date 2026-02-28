@@ -50,11 +50,11 @@ bearer_scheme = HTTPBearer()
 
 
 def verificar_senha(senha_plain: str, senha_hash: str) -> bool:
-    return pwd_context.verify(senha_plain, senha_hash)
+    return pwd_context.verify(senha_plain[:72], senha_hash)
 
 
 def gerar_hash_senha(senha: str) -> str:
-    return pwd_context.hash(senha)
+    return pwd_context.hash(senha[:72])
 
 
 def criar_token(data: dict) -> str:

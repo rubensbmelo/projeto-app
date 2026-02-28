@@ -1,12 +1,14 @@
-from fastapi import FastAPI, HTTPException, Body, Depends
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from bson import ObjectId
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
+import uuid
+import logging
 from dotenv import load_dotenv
 from jose import JWTError, jwt
 import bcrypt
@@ -15,11 +17,13 @@ import bcrypt
 # 1. Configurações
 # ============================================================
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ERP Vendas 2026 - Sistema Integrado")
 
 # ============================================================
-# 2. CORS — restrito ao seu frontend no Vercel
+# 2. CORS
 # ============================================================
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "https://projeto-app-pink.vercel.app").split(",")
 
@@ -34,14 +38,15 @@ app.add_middleware(
 # ============================================================
 # 3. Conexão com MongoDB Atlas
 # ============================================================
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+MONGODB_URL = os.getenv("MONGODB_URL", os.getenv("MONGO_URL", "mongodb://localhost:27017"))
+DB_NAME = os.getenv("DB_NAME", "erp_database")
 client = AsyncIOMotorClient(MONGODB_URL)
-db = client.erp_database
+db = client[DB_NAME]
 
 # ============================================================
 # 4. Segurança — JWT + Bcrypt
 # ============================================================
-SECRET_KEY = os.getenv("SECRET_KEY", "TROQUE-ISSO-POR-UMA-CHAVE-SECRETA-FORTE-NO-ENV")
+SECRET_KEY = os.getenv("SECRET_KEY", "TROQUE-NO-ENV")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 horas
 
@@ -58,16 +63,15 @@ def gerar_hash_senha(senha: str) -> str:
 
 def criar_token(data: dict) -> str:
     payload = data.copy()
-    payload["exp"] = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload["exp"] = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def verificar_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
-    """Dependência que protege rotas — valida o JWT em cada requisição."""
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
-        role: str = payload.get("role")
+        role: str = payload.get("role", "vendedor")
         if email is None:
             raise HTTPException(status_code=401, detail="Token inválido")
         return {"email": email, "role": role}
@@ -76,37 +80,60 @@ def verificar_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_s
 
 
 def apenas_admin(usuario=Depends(verificar_token)):
-    """Dependência extra para rotas exclusivas de administrador."""
     if usuario.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Acesso restrito a administradores")
     return usuario
 
 
 # ============================================================
-# 5. Usuário padrão — criado no startup se não existir
-#    Troque a senha via variável de ambiente ADMIN_PASSWORD
+# 5. Startup — cria admin padrão e índices
 # ============================================================
 @app.on_event("startup")
-async def criar_usuario_padrao():
+async def startup():
+    # Índices para performance
+    await db.usuarios.create_index("email", unique=True)
+    await db.clientes.create_index("cnpj")
+    await db.pedidos.create_index("numero_oc")
+    await db.pedidos.create_index("cliente_id")
+    await db.pedidos.create_index("status")
+
+    # Cria admin padrão se não existir
+    admin_email = os.getenv("ADMIN_EMAIL", "rubensbmelo@hotmail.com")
+    admin_nome = os.getenv("ADMIN_NOME", "Administrador")
     senha_env = os.getenv("ADMIN_PASSWORD", "TroqueEssaSenha@2026")
-    usuario_existente = await db.usuarios.find_one({"email": "rubensbmelo@hotmail.com"})
-    if not usuario_existente:
+
+    if not await db.usuarios.find_one({"email": admin_email}):
         await db.usuarios.insert_one({
-            "nome": "Administrador",
-            "email": "rubensbmelo@hotmail.com",
+            "id": str(uuid.uuid4()),
+            "nome": admin_nome,
+            "email": admin_email,
             "senha_hash": gerar_hash_senha(senha_env),
-            "role": "admin"
+            "role": "admin",
+            "ativo": True,
+            "criado_em": datetime.now(timezone.utc).isoformat()
         })
-        print("✅ Usuário admin criado com senha do .env")
+        logger.info(f"✅ Usuário admin criado: {admin_email}")
 
 
 # ============================================================
-# 6. Schemas (Modelos de Dados)
+# 6. Schemas
 # ============================================================
 
 class LoginSchema(BaseModel):
     email: str
     password: str
+
+
+class UsuarioCreateSchema(BaseModel):
+    nome: str
+    email: EmailStr
+    password: str
+    role: Optional[str] = "vendedor"  # admin | vendedor | visualizador
+
+
+class UsuarioUpdateSenhaSchema(BaseModel):
+    senha_atual: str
+    nova_senha: str
 
 
 class MaterialSchema(BaseModel):
@@ -135,12 +162,15 @@ class ItemPedido(BaseModel):
     material_id: str
     quantidade: int
     peso_calculado: float
+    valor_unitario: Optional[float] = 0.0
+    subtotal: Optional[float] = 0.0
+    ipi: Optional[float] = 0.0
 
 
 class PedidoSchema(BaseModel):
     cliente_id: Optional[str] = ""
     cliente_nome: str
-    item_nome: str
+    item_nome: Optional[str] = ""
     itens: Optional[List[ItemPedido]] = []
     status: str = "PENDENTE"
     valor_total: float = 0.0
@@ -149,11 +179,13 @@ class PedidoSchema(BaseModel):
     numero_fabrica: Optional[str] = ""
     numero_oc: Optional[str] = ""
     condicao_pagamento: Optional[str] = ""
+    observacoes: Optional[str] = ""
 
 
 # ============================================================
-# 7. Helper para converter ObjectId com segurança
+# 7. Helpers
 # ============================================================
+
 def to_object_id(id_str: str) -> ObjectId:
     try:
         return ObjectId(id_str)
@@ -161,8 +193,18 @@ def to_object_id(id_str: str) -> ObjectId:
         raise HTTPException(status_code=400, detail=f"ID inválido: {id_str}")
 
 
+def serialize(doc: dict) -> dict:
+    if "_id" in doc:
+        doc["id"] = str(doc.pop("_id"))
+    return doc
+
+
+def gerar_numero_oc() -> str:
+    return f"OC-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+
 # ============================================================
-# 8. Rotas de AUTENTICAÇÃO
+# 8. Autenticação
 # ============================================================
 
 @app.post("/api/auth/login")
@@ -170,130 +212,298 @@ async def login(data: LoginSchema):
     usuario = await db.usuarios.find_one({"email": data.email})
     if not usuario or not verificar_senha(data.password, usuario["senha_hash"]):
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+    if not usuario.get("ativo", True):
+        raise HTTPException(status_code=403, detail="Usuário inativo. Contate o administrador.")
 
-    token = criar_token({"sub": usuario["email"], "role": usuario["role"]})
+    token = criar_token({"sub": usuario["email"], "role": usuario.get("role", "vendedor")})
     return {
         "access_token": token,
         "token_type": "bearer",
         "user": {
+            "id": usuario.get("id", ""),
             "nome": usuario["nome"],
             "email": usuario["email"],
-            "role": usuario["role"]
+            "role": usuario.get("role", "vendedor")
         }
     }
 
 
 @app.get("/api/auth/me")
 async def get_me(usuario=Depends(verificar_token)):
-    """Retorna dados do usuário logado — rota protegida."""
-    return usuario
+    doc = await db.usuarios.find_one({"email": usuario["email"]}, {"senha_hash": 0, "_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    return doc
+
+
+@app.put("/api/auth/trocar-senha")
+async def trocar_senha(data: UsuarioUpdateSenhaSchema, usuario=Depends(verificar_token)):
+    doc = await db.usuarios.find_one({"email": usuario["email"]})
+    if not doc or not verificar_senha(data.senha_atual, doc["senha_hash"]):
+        raise HTTPException(status_code=401, detail="Senha atual incorreta")
+    await db.usuarios.update_one(
+        {"email": usuario["email"]},
+        {"$set": {"senha_hash": gerar_hash_senha(data.nova_senha)}}
+    )
+    return {"message": "Senha atualizada com sucesso!"}
 
 
 # ============================================================
-# 9. Rotas de MATERIAIS (protegidas)
+# 9. Gestão de Usuários (apenas admin)
+# ============================================================
+
+@app.get("/api/usuarios")
+async def listar_usuarios(admin=Depends(apenas_admin)):
+    usuarios = await db.usuarios.find({}, {"senha_hash": 0}).to_list(length=100)
+    return [serialize(u) for u in usuarios]
+
+
+@app.post("/api/usuarios", status_code=201)
+async def criar_usuario(data: UsuarioCreateSchema, admin=Depends(apenas_admin)):
+    if await db.usuarios.find_one({"email": data.email}):
+        raise HTTPException(status_code=400, detail="E-mail já cadastrado")
+    novo = {
+        "id": str(uuid.uuid4()),
+        "nome": data.nome,
+        "email": data.email,
+        "senha_hash": gerar_hash_senha(data.password),
+        "role": data.role,
+        "ativo": True,
+        "criado_em": datetime.now(timezone.utc).isoformat()
+    }
+    await db.usuarios.insert_one(novo)
+    return {"message": f"Usuário {data.email} criado!", "role": data.role}
+
+
+@app.put("/api/usuarios/{usuario_id}/desativar")
+async def desativar_usuario(usuario_id: str, admin=Depends(apenas_admin)):
+    await db.usuarios.update_one({"id": usuario_id}, {"$set": {"ativo": False}})
+    return {"message": "Usuário desativado!"}
+
+
+@app.put("/api/usuarios/{usuario_id}/ativar")
+async def ativar_usuario(usuario_id: str, admin=Depends(apenas_admin)):
+    await db.usuarios.update_one({"id": usuario_id}, {"$set": {"ativo": True}})
+    return {"message": "Usuário ativado!"}
+
+
+# ============================================================
+# 10. Materiais
 # ============================================================
 
 @app.get("/api/materiais")
 async def listar_materiais(usuario=Depends(verificar_token)):
     materiais = await db.materiais.find().to_list(length=500)
-    for m in materiais:
-        m["id"] = str(m.pop("_id"))
-    return materiais
+    return [serialize(m) for m in materiais]
 
 
-@app.post("/api/materiais")
+@app.post("/api/materiais", status_code=201)
 async def criar_material(material: MaterialSchema, usuario=Depends(verificar_token)):
-    result = await db.materiais.insert_one(material.dict())
+    doc = material.dict()
+    doc["criado_em"] = datetime.now(timezone.utc).isoformat()
+    doc["criado_por"] = usuario["email"]
+    result = await db.materiais.insert_one(doc)
     return {"id": str(result.inserted_id), "message": "Material salvo!"}
 
 
 @app.put("/api/materiais/{material_id}")
 async def atualizar_material(material_id: str, material: MaterialSchema, usuario=Depends(verificar_token)):
-    await db.materiais.update_one(
+    doc = material.dict()
+    doc["atualizado_em"] = datetime.now(timezone.utc).isoformat()
+    doc["atualizado_por"] = usuario["email"]
+    result = await db.materiais.update_one(
         {"_id": to_object_id(material_id)},
-        {"$set": material.dict()}
+        {"$set": doc}
     )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Material não encontrado")
     return {"message": "Material atualizado!"}
 
 
 @app.delete("/api/materiais/{material_id}")
-async def deletar_material(material_id: str, usuario=Depends(apenas_admin)):
-    """Apenas admins podem deletar materiais."""
-    await db.materiais.delete_one({"_id": to_object_id(material_id)})
+async def deletar_material(material_id: str, admin=Depends(apenas_admin)):
+    result = await db.materiais.delete_one({"_id": to_object_id(material_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Material não encontrado")
     return {"message": "Material removido!"}
 
 
 # ============================================================
-# 10. Rotas de PEDIDOS (protegidas)
+# 11. Clientes
+# ============================================================
+
+@app.get("/api/clientes")
+async def listar_clientes(usuario=Depends(verificar_token)):
+    clientes = await db.clientes.find().to_list(length=500)
+    return [serialize(c) for c in clientes]
+
+
+@app.get("/api/clientes/{cliente_id}")
+async def buscar_cliente(cliente_id: str, usuario=Depends(verificar_token)):
+    cliente = await db.clientes.find_one({"_id": to_object_id(cliente_id)})
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    return serialize(cliente)
+
+
+@app.post("/api/clientes", status_code=201)
+async def criar_cliente(cliente: ClienteSchema, usuario=Depends(verificar_token)):
+    ultimo = await db.clientes.find_one({}, sort=[("criado_em", -1)])
+    num = 1
+    if ultimo and "referencia" in ultimo:
+        try:
+            num = int(ultimo["referencia"].split("-")[1]) + 1
+        except Exception:
+            pass
+    doc = cliente.dict()
+    doc["referencia"] = f"CLI-{num:04d}"
+    doc["criado_em"] = datetime.now(timezone.utc).isoformat()
+    doc["criado_por"] = usuario["email"]
+    result = await db.clientes.insert_one(doc)
+    return {"id": str(result.inserted_id), "referencia": doc["referencia"], "message": "Cliente cadastrado!"}
+
+
+@app.put("/api/clientes/{cliente_id}")
+async def atualizar_cliente(cliente_id: str, cliente: ClienteSchema, usuario=Depends(verificar_token)):
+    doc = cliente.dict()
+    doc["atualizado_em"] = datetime.now(timezone.utc).isoformat()
+    doc["atualizado_por"] = usuario["email"]
+    result = await db.clientes.update_one(
+        {"_id": to_object_id(cliente_id)},
+        {"$set": doc}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    return {"message": "Cliente atualizado!"}
+
+
+@app.delete("/api/clientes/{cliente_id}")
+async def deletar_cliente(cliente_id: str, admin=Depends(apenas_admin)):
+    result = await db.clientes.delete_one({"_id": to_object_id(cliente_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    return {"message": "Cliente removido!"}
+
+
+# ============================================================
+# 12. Pedidos
 # ============================================================
 
 @app.get("/api/pedidos")
 async def listar_pedidos(usuario=Depends(verificar_token)):
     pedidos = await db.pedidos.find().to_list(length=500)
-    for p in pedidos:
-        p["id"] = str(p.pop("_id"))
-    return pedidos
+    return [serialize(p) for p in pedidos]
 
 
-@app.post("/api/pedidos")
+@app.get("/api/pedidos/{pedido_id}")
+async def buscar_pedido(pedido_id: str, usuario=Depends(verificar_token)):
+    pedido = await db.pedidos.find_one({"_id": to_object_id(pedido_id)})
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    return serialize(pedido)
+
+
+@app.post("/api/pedidos", status_code=201)
 async def criar_pedido(pedido: PedidoSchema, usuario=Depends(verificar_token)):
-    result = await db.pedidos.insert_one(pedido.dict())
-    return {"id": str(result.inserted_id), "message": "Pedido registrado!"}
+    doc = pedido.dict()
+    if not doc.get("numero_oc"):
+        doc["numero_oc"] = gerar_numero_oc()
+    doc["criado_em"] = datetime.now(timezone.utc).isoformat()
+    doc["criado_por"] = usuario["email"]
+    result = await db.pedidos.insert_one(doc)
+    return {"id": str(result.inserted_id), "numero_oc": doc["numero_oc"], "message": "Pedido registrado!"}
 
 
 @app.put("/api/pedidos/{pedido_id}")
 async def atualizar_pedido(pedido_id: str, pedido: PedidoSchema, usuario=Depends(verificar_token)):
-    await db.pedidos.update_one(
-        {"_id": to_object_id(pedido_id)},
-        {"$set": pedido.dict()}
-    )
+    pedido_atual = await db.pedidos.find_one({"_id": to_object_id(pedido_id)})
+    if not pedido_atual:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    # Trava contábil — bloqueia edição se NF emitida e não for admin
+    if pedido_atual.get("status") == "NF_EMITIDA" and usuario.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Pedido com NF emitida não pode ser editado")
+    doc = pedido.dict()
+    doc["atualizado_em"] = datetime.now(timezone.utc).isoformat()
+    doc["atualizado_por"] = usuario["email"]
+    await db.pedidos.update_one({"_id": to_object_id(pedido_id)}, {"$set": doc})
     return {"message": "Pedido atualizado com sucesso!"}
 
 
 @app.delete("/api/pedidos/{pedido_id}")
-async def deletar_pedido(pedido_id: str, usuario=Depends(apenas_admin)):
-    """Apenas admins podem deletar pedidos."""
-    await db.pedidos.delete_one({"_id": to_object_id(pedido_id)})
+async def deletar_pedido(pedido_id: str, admin=Depends(apenas_admin)):
+    result = await db.pedidos.delete_one({"_id": to_object_id(pedido_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
     return {"message": "Pedido removido!"}
 
 
 # ============================================================
-# 11. Rotas de CLIENTES (protegidas)
+# 13. Dashboard
 # ============================================================
 
-@app.get("/api/clientes")
-async def listar_clientes(usuario=Depends(verificar_token)):
-    clientes = await db.clientes.find().to_list(length=100)
-    for c in clientes:
-        c["id"] = str(c.pop("_id"))
-    return clientes
+@app.get("/api/dashboard/stats")
+async def get_dashboard_stats(usuario=Depends(verificar_token)):
+    now = datetime.now(timezone.utc)
+    inicio_mes = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
 
+    todos_pedidos = await db.pedidos.find().to_list(length=1000)
+    pedidos_mes = [p for p in todos_pedidos if p.get("criado_em", "") >= inicio_mes]
 
-@app.post("/api/clientes")
-async def criar_cliente(cliente: ClienteSchema, usuario=Depends(verificar_token)):
-    result = await db.clientes.insert_one(cliente.dict())
-    return {"id": str(result.inserted_id), "message": "Cliente cadastrado!"}
+    total_clientes = await db.clientes.count_documents({})
+    total_materiais = await db.materiais.count_documents({})
 
+    valor_total_mes = sum(p.get("valor_total", 0) for p in pedidos_mes)
+    peso_total_mes = sum(p.get("peso_total", 0) for p in pedidos_mes)
 
-@app.put("/api/clientes/{cliente_id}")
-async def atualizar_cliente(cliente_id: str, cliente: ClienteSchema, usuario=Depends(verificar_token)):
-    await db.clientes.update_one(
-        {"_id": to_object_id(cliente_id)},
-        {"$set": cliente.dict()}
-    )
-    return {"message": "Cliente atualizado!"}
+    pedidos_por_status = {}
+    for p in todos_pedidos:
+        s = p.get("status", "PENDENTE")
+        pedidos_por_status[s] = pedidos_por_status.get(s, 0) + 1
 
+    tonelagem_implantada = sum(p.get("peso_total", 0) for p in pedidos_mes if p.get("status") == "IMPLANTADO") / 1000
+    tonelagem_faturada = sum(p.get("peso_total", 0) for p in pedidos_mes if p.get("status") == "NF_EMITIDA") / 1000
 
-@app.delete("/api/clientes/{cliente_id}")
-async def deletar_cliente(cliente_id: str, usuario=Depends(apenas_admin)):
-    """Apenas admins podem deletar clientes."""
-    await db.clientes.delete_one({"_id": to_object_id(cliente_id)})
-    return {"message": "Cliente removido!"}
+    return {
+        "total_clientes": total_clientes,
+        "total_materiais": total_materiais,
+        "total_pedidos": len(todos_pedidos),
+        "pedidos_mes": len(pedidos_mes),
+        "valor_total_mes": round(valor_total_mes, 2),
+        "peso_total_mes": round(peso_total_mes, 2),
+        "tonelagem_implantada": round(tonelagem_implantada, 3),
+        "tonelagem_faturada": round(tonelagem_faturada, 3),
+        "pedidos_por_status": pedidos_por_status,
+    }
 
 
 # ============================================================
-# 12. Inicialização
+# 14. Health Check
 # ============================================================
+
+@app.get("/")
+async def health_check():
+    return {"status": "online", "sistema": "ERP Vendas 2026", "versao": "3.0"}
+
+
+@app.get("/api/health")
+async def api_health():
+    try:
+        await db.command("ping")
+        return {"status": "online", "banco": "conectado"}
+    except Exception:
+        return {"status": "online", "banco": "erro na conexão"}
+
+
+# ============================================================
+# 15. Shutdown
+# ============================================================
+
+@app.on_event("shutdown")
+async def shutdown():
+    client.close()
+    logger.info("🔴 Conexão com MongoDB encerrada")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

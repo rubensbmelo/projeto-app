@@ -90,11 +90,11 @@ def apenas_admin(usuario=Depends(verificar_token)):
 @app.on_event("startup")
 async def criar_usuario_padrao():
     senha_env = os.getenv("ADMIN_PASSWORD", "TroqueEssaSenha@2026")
-    usuario_existente = await db.usuarios.find_one({"email": "admin@admin.com"})
+    usuario_existente = await db.usuarios.find_one({"email": "rubensbmelo@hotmail.com"})
     if not usuario_existente:
         await db.usuarios.insert_one({
             "nome": "Administrador",
-            "email": "admin@admin.com",
+            "email": "rubensbmelo@hotmail.com",
             "senha_hash": gerar_hash_senha(senha_env),
             "role": "admin"
         })

@@ -173,12 +173,14 @@ class PedidoSchema(BaseModel):
     cliente_id: Optional[str] = ""
     cliente_nome: str
     item_nome: Optional[str] = ""
+    numero_fe: Optional[str] = ""        # FE do produto (único por item)
     itens: Optional[List[ItemPedido]] = []
     status: str = "PENDENTE"
     valor_total: float = 0.0
     peso_total: float = 0.0
+    comissao_valor: Optional[float] = 0.0  # Valor R$ da comissão do pedido
     data_entrega: Optional[str] = ""
-    numero_fabrica: Optional[str] = ""
+    numero_fabrica: Optional[str] = ""   # Nº pedido na fábrica (preenchido após implantação)
     numero_oc: Optional[str] = ""
     condicao_pagamento: Optional[str] = ""
     observacoes: Optional[str] = ""

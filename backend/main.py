@@ -583,7 +583,142 @@ async def api_health():
 
 
 # ============================================================
-# 15. Shutdown
+# 15. Notas Fiscais & Vencimentos
+# ============================================================
+
+class NotaFiscalSchema(BaseModel):
+    numero_nf: str
+    pedido_id: str
+    valor_total: float
+    numero_parcelas: int = 1
+    datas_manuais: List[str] = []   # ["2026-01-15", "2026-02-15", ...]
+
+class VencimentoUpdateSchema(BaseModel):
+    status: Optional[str] = None
+    data_pagamento: Optional[str] = None
+
+@app.get("/api/notas-fiscais")
+async def listar_notas(usuario=Depends(verificar_token)):
+    notas = await db.notas_fiscais.find().sort("criado_em", -1).to_list(length=1000)
+    return [serialize(n) for n in notas]
+
+@app.post("/api/notas-fiscais", status_code=201)
+async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
+    # 1. Busca o pedido para pegar comissao_percent e outros dados
+    try:
+        pedido = await db.pedidos.find_one({"_id": to_object_id(nota.pedido_id)})
+    except:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+
+    # 2. Calcula comissão total da NF
+    comissao_percent = float(pedido.get("comissao_percent") or pedido.get("comissao_valor", 0) or 0)
+    # Se comissao_percent > 0 usamos %, senão tentamos buscar do material
+    if comissao_percent <= 0:
+        # Tenta buscar pelo numero_fe do pedido
+        numero_fe = pedido.get("numero_fe", "")
+        if numero_fe:
+            material = await db.materiais.find_one({"numero_fe": numero_fe})
+            if material:
+                comissao_percent = float(material.get("comissao", 0) or 0)
+
+    comissao_total = nota.valor_total * comissao_percent / 100
+    comissao_por_parcela = round(comissao_total / nota.numero_parcelas, 2)
+
+    # 3. Cria a nota fiscal
+    now = datetime.now(timezone.utc).isoformat()
+    nota_doc = {
+        "numero_nf": nota.numero_nf,
+        "pedido_id": nota.pedido_id,
+        "cliente_nome": pedido.get("cliente_nome", ""),
+        "cliente_id": pedido.get("cliente_id", ""),
+        "item_nome": pedido.get("item_nome", ""),
+        "numero_fe": pedido.get("numero_fe", ""),
+        "numero_fabrica": pedido.get("numero_fabrica", ""),
+        "valor_total": nota.valor_total,
+        "comissao_percent": comissao_percent,
+        "comissao_total": comissao_total,
+        "numero_parcelas": nota.numero_parcelas,
+        "criado_em": now,
+        "criado_por": usuario["email"],
+    }
+    result = await db.notas_fiscais.insert_one(nota_doc)
+    nota_id = str(result.inserted_id)
+
+    # 4. Gera vencimentos automaticamente
+    hoje = datetime.now(timezone.utc).date()
+    for i in range(nota.numero_parcelas):
+        # Data manual ou hoje + 30*i dias como fallback
+        if i < len(nota.datas_manuais) and nota.datas_manuais[i]:
+            data_venc_str = nota.datas_manuais[i]
+            data_venc = datetime.strptime(data_venc_str, "%Y-%m-%d").date()
+        else:
+            data_venc = hoje + timedelta(days=30 * (i + 1))
+            data_venc_str = data_venc.isoformat()
+
+        status_venc = "Pago" if data_venc < hoje else "Pendente"
+
+        venc_doc = {
+            "nota_fiscal_id": nota_id,
+            "pedido_id": nota.pedido_id,
+            "cliente_nome": pedido.get("cliente_nome", ""),
+            "numero_nf": nota.numero_nf,
+            "parcela": i + 1,
+            "total_parcelas": nota.numero_parcelas,
+            "data_vencimento": data_venc_str,
+            "comissao_calculada": comissao_por_parcela,
+            "valor_parcela": round(nota.valor_total / nota.numero_parcelas, 2),
+            "status": status_venc,
+            "data_pagamento": None,
+            "criado_em": now,
+        }
+        await db.vencimentos.insert_one(venc_doc)
+
+    # 5. Atualiza status do pedido para NF_EMITIDA
+    await db.pedidos.update_one(
+        {"_id": to_object_id(nota.pedido_id)},
+        {"$set": {"status": "NF_EMITIDA", "nota_fiscal_id": nota_id}}
+    )
+
+    return {"message": "NF criada e vencimentos gerados!", "nota_id": nota_id, "vencimentos_gerados": nota.numero_parcelas}
+
+@app.delete("/api/notas-fiscais/{nota_id}")
+async def deletar_nota(nota_id: str, usuario=Depends(apenas_admin)):
+    # Remove vencimentos vinculados
+    await db.vencimentos.delete_many({"nota_fiscal_id": nota_id})
+    result = await db.notas_fiscais.delete_one({"_id": to_object_id(nota_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="NF não encontrada")
+    return {"message": "NF e vencimentos removidos!"}
+
+@app.get("/api/vencimentos")
+async def listar_vencimentos(usuario=Depends(verificar_token)):
+    # Atualiza automaticamente status para Atrasado se passou da data
+    hoje = datetime.now(timezone.utc).date().isoformat()
+    await db.vencimentos.update_many(
+        {"status": "Pendente", "data_vencimento": {"$lt": hoje}},
+        {"$set": {"status": "Atrasado"}}
+    )
+    vencimentos = await db.vencimentos.find().sort("data_vencimento", 1).to_list(length=1000)
+    return [serialize(v) for v in vencimentos]
+
+@app.put("/api/vencimentos/{venc_id}")
+async def atualizar_vencimento(venc_id: str, data: VencimentoUpdateSchema, usuario=Depends(apenas_admin)):
+    update = {k: v for k, v in data.dict().items() if v is not None}
+    if not update:
+        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar")
+    result = await db.vencimentos.update_one(
+        {"_id": to_object_id(venc_id)},
+        {"$set": update}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Vencimento não encontrado")
+    return {"message": "Vencimento atualizado!"}
+
+
+# ============================================================
+# 16. Shutdown
 # ============================================================
 
 @app.on_event("shutdown")

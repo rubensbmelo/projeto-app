@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 
 # ============================================================
 # 1. Configurações
@@ -45,16 +45,15 @@ SECRET_KEY = os.getenv("SECRET_KEY", "TROQUE-ISSO-POR-UMA-CHAVE-SECRETA-FORTE-NO
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 horas
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
 
 
 def verificar_senha(senha_plain: str, senha_hash: str) -> bool:
-    return pwd_context.verify(senha_plain[:72], senha_hash)
+    return bcrypt.checkpw(senha_plain.encode("utf-8"), senha_hash.encode("utf-8"))
 
 
 def gerar_hash_senha(senha: str) -> str:
-    return pwd_context.hash(senha[:72])
+    return bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def criar_token(data: dict) -> str:

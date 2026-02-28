@@ -78,7 +78,7 @@ const Comissoes = () => {
   // Enriquece vencimentos com dados da nota
   const vencimentosEnriquecidos = useMemo(() =>
     vencimentos.map(v => {
-      const nota = getNota(v.nota_fiscal_id);
+      const nota = notas.find(n => n.id === v.nota_fiscal_id);
       return { ...v, nota, cliente_nome: v.cliente_nome || nota?.cliente_nome || 'N/A', numero_nf: v.numero_nf || nota?.numero_nf };
     }), [vencimentos, notas]
   );

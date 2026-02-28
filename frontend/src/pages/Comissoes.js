@@ -1,253 +1,315 @@
-import React, { useState, useEffect } from 'react';
-import api from '../services/api'; 
-import { useAuth } from '../context/AuthContext'; 
+import React, { useState, useEffect, useMemo } from 'react';
+import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
-import { FileDown, DollarSign, Clock, AlertCircle, TrendingUp, Lock, CheckCircle2 } from 'lucide-react';
+import { FileDown, DollarSign, Clock, AlertCircle, TrendingUp, Lock, CheckCircle2, Search, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
+const fmt = (v) =>
+  new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0);
+
+const fmtDate = (d) => {
+  if (!d) return '---';
+  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR');
+};
+
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+const STATUS_CFG = {
+  Pago:     { cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', label: 'PAGO' },
+  Pendente: { cls: 'bg-blue-50 text-blue-700 border-blue-200',         dot: 'bg-blue-500',    label: 'PENDENTE' },
+  Atrasado: { cls: 'bg-red-50 text-red-700 border-red-200',            dot: 'bg-red-500',     label: 'ATRASADO' },
+};
+
 const Comissoes = () => {
-  const { isAdmin } = useAuth(); 
-  
+  const { isAdmin } = useAuth();
   const [vencimentos, setVencimentos] = useState([]);
   const [notas, setNotas] = useState([]);
   const [pedidos, setPedidos] = useState([]);
-  const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('TODOS');
+  const [selectedMonth, setSelectedMonth] = useState('TODOS');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
-      const [vencRes, notasRes, pedidosRes, clientesRes] = await Promise.all([
+      const [vencRes, notasRes, pedidosRes] = await Promise.all([
         api.get('/vencimentos'),
         api.get('/notas-fiscais'),
         api.get('/pedidos'),
-        api.get('/clientes')
       ]);
       setVencimentos(vencRes.data || []);
       setNotas(notasRes.data || []);
       setPedidos(pedidosRes.data || []);
-      setClientes(clientesRes.data || []);
-    } catch (error) {
-      toast.error('Erro ao carregar relatório financeiro');
-    } finally {
-      setLoading(false);
-    }
+    } catch { toast.error('Erro ao carregar relatório financeiro'); }
+    finally { setLoading(false); }
+  };
+
+  const handleMarcarPago = async (vencId) => {
+    if (!isAdmin) return;
+    try {
+      const hoje = new Date().toISOString().split('T')[0];
+      await api.put(`/vencimentos/${vencId}`, { status: 'Pago', data_pagamento: hoje });
+      toast.success('Pagamento confirmado!');
+      fetchData();
+    } catch { toast.error('Erro ao confirmar pagamento'); }
   };
 
   const handleExportExcel = async () => {
-    if (!isAdmin) {
-      toast.error('Acesso restrito para exportação.');
-      return;
-    }
-
+    if (!isAdmin) return toast.error('Acesso restrito');
     try {
       const response = await api.get('/export/comissoes', { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `comissoes_${new Date().toLocaleDateString('pt-BR')}.xlsx`);
+      link.setAttribute('download', `comissoes_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      toast.success('Excel gerado com sucesso!');
-    } catch (error) {
-      toast.error('Erro ao gerar arquivo Excel');
-    }
+      toast.success('Excel gerado!');
+    } catch { toast.error('Erro ao gerar Excel'); }
   };
 
-  const getClienteNome = (pedidoId) => {
-    const pedido = pedidos.find(p => p.id === pedidoId);
-    if (!pedido) return 'N/A';
-    // Verifica se existe o objeto cliente ou se é o nome direto (compatibilidade)
-    return pedido.cliente?.razao_social || pedido.cliente_nome || 'Cliente não identificado';
+  const getNota = (notaId) => notas.find(n => n.id === notaId);
+
+  // Enriquece vencimentos com dados da nota
+  const vencimentosEnriquecidos = useMemo(() =>
+    vencimentos.map(v => {
+      const nota = getNota(v.nota_fiscal_id);
+      return { ...v, nota, cliente_nome: v.cliente_nome || nota?.cliente_nome || 'N/A', numero_nf: v.numero_nf || nota?.numero_nf };
+    }), [vencimentos, notas]
+  );
+
+  // Filtros
+  const vencimentosFiltrados = useMemo(() => {
+    return vencimentosEnriquecidos.filter(v => {
+      const matchStatus = filterStatus === 'TODOS' || v.status === filterStatus;
+      const matchMes = selectedMonth === 'TODOS' ||
+        (v.data_vencimento && (new Date(v.data_vencimento + 'T00:00:00').getMonth() + 1).toString() === selectedMonth);
+      const s = searchTerm.toLowerCase();
+      const matchSearch = !s ||
+        v.numero_nf?.toLowerCase().includes(s) ||
+        v.cliente_nome?.toLowerCase().includes(s) ||
+        v.nota?.numero_fabrica?.toLowerCase().includes(s);
+      return matchStatus && matchMes && matchSearch;
+    });
+  }, [vencimentosEnriquecidos, filterStatus, selectedMonth, searchTerm]);
+
+  // Totalizadores
+  const totalPago     = vencimentos.filter(v => v.status === 'Pago').reduce((a, v) => a + (v.comissao_calculada || 0), 0);
+  const totalPendente = vencimentos.filter(v => v.status === 'Pendente').reduce((a, v) => a + (v.comissao_calculada || 0), 0);
+  const totalAtrasado = vencimentos.filter(v => v.status === 'Atrasado').reduce((a, v) => a + (v.comissao_calculada || 0), 0);
+  const totalGeral    = totalPago + totalPendente + totalAtrasado;
+
+  const contadores = {
+    TODOS: vencimentos.length,
+    Pendente: vencimentos.filter(v => v.status === 'Pendente').length,
+    Atrasado: vencimentos.filter(v => v.status === 'Atrasado').length,
+    Pago:     vencimentos.filter(v => v.status === 'Pago').length,
   };
 
-  // Cálculos de Totais
-  const totalComissaoPaga = vencimentos
-    .filter(v => v.status === 'Pago')
-    .reduce((sum, v) => sum + (Number(v.comissao_calculada) || 0), 0);
-
-  const totalComissaoPendente = vencimentos
-    .filter(v => v.status === 'Pendente')
-    .reduce((sum, v) => sum + (Number(v.comissao_calculada) || 0), 0);
-
-  const totalComissaoAtrasada = vencimentos
-    .filter(v => v.status === 'Atrasado')
-    .reduce((sum, v) => sum + (Number(v.comissao_calculada) || 0), 0);
-
-  // Organização dos dados por status
-  const comissoesPorStatus = vencimentos.reduce((acc, venc) => {
-    const nota = notas.find(n => n.id === venc.nota_fiscal_id);
-    if (nota) {
-      if (!acc[venc.status]) acc[venc.status] = [];
-      acc[venc.status].push({ ...venc, nota, pedidoId: nota.pedido_id });
-    }
-    return acc;
-  }, {});
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-[80vh] gap-4">
+      <div className="w-10 h-10 border-4 border-slate-200 border-t-[#0A3D73] rounded-full animate-spin" />
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse">Carregando Comissões...</p>
+    </div>
+  );
 
   return (
-    <div className="p-4 md:p-8 bg-[#E9EEF2] min-h-screen font-sans">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b-2 border-blue-900 pb-4 gap-4">
+    <div className="p-4 md:p-6 bg-[#E9EEF2] min-h-screen font-sans antialiased text-slate-800">
+
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 border-b-2 border-[#0A3D73] pb-4 gap-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 uppercase tracking-tight">Relatório de Comissões</h1>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 italic">Consolidado Financeiro</p>
+          <h1 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+            Relatório de Comissões
+            {!isAdmin && <Lock size={14} className="text-slate-400" />}
+          </h1>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+            Consolidado Financeiro · {vencimentos.length} vencimentos
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex items-center bg-white border border-slate-300 h-9 px-3 gap-2">
+            <Search size={13} className="text-slate-400" />
+            <input
+              placeholder="NF, cliente..."
+              className="text-[11px] font-bold uppercase bg-transparent outline-none w-36"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
+          {isAdmin && (
+            <Button
+              onClick={handleExportExcel}
+              className="bg-[#107C41] hover:bg-[#0A5D31] text-white rounded-none px-5 font-black text-[10px] uppercase h-9 tracking-widest"
+            >
+              <FileDown size={13} className="mr-1.5" /> Exportar Excel
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* CARDS RESUMO */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        {[
+          { label: 'Total Comissões',   value: `R$ ${fmt(totalGeral)}`,   icon: DollarSign,   color: 'text-slate-700',   bg: 'bg-white border-slate-200',      border: 'border-l-4 border-l-slate-400' },
+          { label: 'Recebido (Pago)',   value: `R$ ${fmt(totalPago)}`,     icon: CheckCircle2, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', border: 'border-l-4 border-l-emerald-500' },
+          { label: 'A Receber',         value: `R$ ${fmt(totalPendente)}`, icon: Clock,        color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',        border: 'border-l-4 border-l-blue-500' },
+          { label: 'Atrasado',          value: `R$ ${fmt(totalAtrasado)}`, icon: AlertCircle,  color: 'text-red-700',     bg: totalAtrasado > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200', border: totalAtrasado > 0 ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-slate-200' },
+        ].map((item, i) => (
+          <div key={i} className={`flex items-center gap-3 p-3 border ${item.bg} ${item.border}`}>
+            <item.icon size={18} className={item.color} />
+            <div>
+              <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">{item.label}</p>
+              <p className={`text-sm font-black ${item.color} font-mono mt-0.5`}>{item.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* FILTROS */}
+      <div className="flex flex-wrap gap-3 mb-4 items-center">
+        {/* Status */}
+        <div className="flex gap-1">
+          {[
+            { k: 'TODOS',    label: 'Todos' },
+            { k: 'Pendente', label: 'Pendente' },
+            { k: 'Atrasado', label: 'Atrasado' },
+            { k: 'Pago',     label: 'Pago' },
+          ].map(s => (
+            <button
+              key={s.k}
+              onClick={() => setFilterStatus(s.k)}
+              className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-wider border transition-all ${
+                filterStatus === s.k
+                  ? 'bg-[#0A3D73] text-white border-[#0A3D73]'
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-[#0A3D73]'
+              }`}
+            >
+              {s.label} ({contadores[s.k] || 0})
+            </button>
+          ))}
         </div>
 
-        {isAdmin ? (
-          <Button 
-            onClick={handleExportExcel} 
-            className="w-full md:w-auto bg-[#107C41] hover:bg-[#0A5D31] text-white rounded-none px-6 font-bold text-[10px] uppercase tracking-widest shadow-md py-6"
+        {/* Mês */}
+        <div className="flex items-center gap-1">
+          <Calendar size={12} className="text-slate-400" />
+          <select
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+            className="text-[10px] font-black uppercase bg-white border border-slate-300 h-8 px-2 outline-none cursor-pointer"
           >
-            <FileDown size={18} className="mr-2" /> Exportar para Excel
-          </Button>
-        ) : (
-          <div className="flex items-center gap-2 bg-white border border-slate-300 px-4 py-2 text-slate-400 text-[9px] font-bold uppercase">
-            <Lock size={14} /> Somente Leitura
-          </div>
-        )}
-      </div>
-
-      {/* Cards de Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <Card className="p-5 border-none shadow-md bg-white border-l-4 border-green-500 rounded-none">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase">Recebido (Pago)</p>
-              <h3 className="text-xl md:text-2xl font-bold text-green-600 mt-1 font-mono">
-                R$ {totalComissaoPaga.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-              </h3>
-            </div>
-            <div className="p-2 bg-green-50 text-green-600 rounded"><CheckCircle2 size={20} /></div>
-          </div>
-        </Card>
-
-        <Card className="p-5 border-none shadow-md bg-white border-l-4 border-blue-500 rounded-none">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase">A Receber (Em Aberto)</p>
-              <h3 className="text-xl md:text-2xl font-bold text-blue-700 mt-1 font-mono">
-                R$ {totalComissaoPendente.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-              </h3>
-            </div>
-            <div className="p-2 bg-blue-50 text-blue-600 rounded"><Clock size={20} /></div>
-          </div>
-        </Card>
-
-        <Card className="p-5 border-none shadow-md bg-white border-l-4 border-red-500 rounded-none">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase">Atrasado</p>
-              <h3 className="text-xl md:text-2xl font-bold text-red-600 mt-1 font-mono">
-                R$ {totalComissaoAtrasada.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-              </h3>
-            </div>
-            <div className="p-2 bg-red-50 text-red-600 rounded"><AlertCircle size={20} /></div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="space-y-8">
-        {/* SEÇÃO: PENDENTES E ATRASADOS */}
-        <Card className="rounded-none border border-slate-300 shadow-xl overflow-hidden">
-          <div className="p-4 bg-[#0A3D73] text-white">
-            <h3 className="text-[10px] font-bold flex items-center gap-2 uppercase tracking-widest">
-              <TrendingUp size={16} /> Fluxo de Caixa Futuro (Comissões)
-            </h3>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-[#0A3D73] text-[10px] font-bold uppercase tracking-widest border-b">
-                <tr>
-                  <th className="px-6 py-4">NF</th>
-                  <th className="px-6 py-4">Cliente / Razão Social</th>
-                  <th className="px-6 py-4 text-center">Parcela</th>
-                  <th className="px-6 py-4">Vencimento</th>
-                  <th className="px-6 py-4 text-right">Valor Comissão</th>
-                  <th className="px-6 py-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {[...(comissoesPorStatus['Atrasado'] || []), ...(comissoesPorStatus['Pendente'] || [])].length > 0 ? (
-                  [...(comissoesPorStatus['Atrasado'] || []), ...(comissoesPorStatus['Pendente'] || [])].map(item => (
-                    <tr key={item.id} className="hover:bg-blue-50/50 transition-colors">
-                      <td className="px-6 py-4 font-mono font-bold text-slate-800 text-xs">NF {item.nota?.numero_nf}</td>
-                      <td className="px-6 py-4 font-bold text-slate-700 text-xs uppercase truncate max-w-[200px]">{getClienteNome(item.pedidoId)}</td>
-                      <td className="px-6 py-4 text-center text-slate-500 font-mono text-xs">{item.parcela}ª</td>
-                      <td className="px-6 py-4 font-bold text-slate-600 text-xs">
-                        {new Date(item.data_vencimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono font-bold text-blue-900 text-xs">
-                        R$ {Number(item.comissao_calculada).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`px-2 py-1 text-[9px] font-black border uppercase ${
-                          item.status === 'Atrasado' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-blue-50 text-blue-700 border-blue-100'
-                        }`}>
-                          {item.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-10 text-center text-slate-400 text-xs italic">Nenhuma comissão pendente encontrada.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        {/* SEÇÃO: PAGOS (HISTÓRICO) */}
-        {comissoesPorStatus['Pago'] && (
-           <Card className="rounded-none border border-slate-300 shadow-lg overflow-hidden opacity-90">
-            <div className="p-4 bg-slate-800 text-white">
-              <h3 className="text-[10px] font-bold flex items-center gap-2 uppercase tracking-widest">
-                <CheckCircle2 size={16} /> Histórico de Recebimentos
-              </h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase border-b">
-                  <tr>
-                    <th className="px-6 py-4">NF</th>
-                    <th className="px-6 py-4">Cliente</th>
-                    <th className="px-6 py-4">Data Pagamento</th>
-                    <th className="px-6 py-4 text-right">Comissão Paga</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {comissoesPorStatus['Pago'].map(item => (
-                    <tr key={item.id} className="bg-green-50/20">
-                      <td className="px-6 py-4 font-mono text-xs text-slate-600">NF {item.nota?.numero_nf}</td>
-                      <td className="px-6 py-4 text-xs font-bold uppercase">{getClienteNome(item.pedidoId)}</td>
-                      <td className="px-6 py-4 text-xs">
-                        {item.data_pagamento ? new Date(item.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '---'}
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono font-bold text-green-700 text-xs">
-                        R$ {Number(item.comissao_calculada).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-           </Card>
-        )}
-      </div>
-
-      {loading && (
-        <div className="fixed inset-0 bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center z-50">
-          <div className="animate-spin text-blue-900 mb-4"><Clock size={40} /></div>
-          <p className="text-[10px] font-black text-blue-900 uppercase tracking-widest font-sans">Sincronizando Relatórios...</p>
+            <option value="TODOS">Todos os meses</option>
+            {MESES.map((m, i) => (
+              <option key={m} value={(i+1).toString()}>{m}</option>
+            ))}
+          </select>
         </div>
-      )}
+      </div>
+
+      {/* TABELA — FLUXO FUTURO */}
+      <Card className="rounded-none border border-slate-300 shadow-xl overflow-hidden mb-4">
+        <div className="p-3 bg-[#0A3D73] text-white flex items-center justify-between">
+          <h3 className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest">
+            <TrendingUp size={14} /> Fluxo de Comissões
+          </h3>
+          <span className="text-[9px] font-bold text-blue-300">{vencimentosFiltrados.length} registros</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="bg-slate-50 text-[9px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                <th className="px-4 py-3 border-r border-slate-100">NF</th>
+                <th className="px-4 py-3 border-r border-slate-100">Cliente</th>
+                <th className="px-4 py-3 border-r border-slate-100 text-center">Parcela</th>
+                <th className="px-4 py-3 border-r border-slate-100">Vencimento</th>
+                <th className="px-4 py-3 border-r border-slate-100 text-right">Comissão R$</th>
+                <th className="px-4 py-3 border-r border-slate-100 text-center">Status</th>
+                <th className="px-4 py-3">Data Pgto</th>
+                {isAdmin && <th className="px-4 py-3 text-center">Ação</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {vencimentosFiltrados.length === 0 ? (
+                <tr>
+                  <td colSpan={isAdmin ? 8 : 7} className="text-center py-12 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                    <DollarSign size={28} className="mx-auto mb-3 opacity-20" />
+                    Nenhuma comissão encontrada
+                  </td>
+                </tr>
+              ) : vencimentosFiltrados.map((v, idx) => {
+                const cfg = STATUS_CFG[v.status] || STATUS_CFG.Pendente;
+                return (
+                  <tr
+                    key={v.id}
+                    className={`text-[11px] border-b border-slate-100 transition-colors ${
+                      idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
+                    } hover:bg-blue-50/40 ${v.status === 'Atrasado' ? 'border-l-2 border-l-red-400' : ''}`}
+                  >
+                    <td className="px-4 py-2.5 border-r border-slate-100 font-mono font-black text-blue-800 whitespace-nowrap">
+                      NF {v.numero_nf}
+                    </td>
+                    <td className="px-4 py-2.5 border-r border-slate-100 font-bold uppercase max-w-[160px] truncate">
+                      {v.cliente_nome}
+                    </td>
+                    <td className="px-4 py-2.5 border-r border-slate-100 text-center font-black text-slate-500">
+                      {v.parcela}ª/{v.total_parcelas}
+                    </td>
+                    <td className="px-4 py-2.5 border-r border-slate-100 font-bold whitespace-nowrap">
+                      {fmtDate(v.data_vencimento)}
+                    </td>
+                    <td className="px-4 py-2.5 border-r border-slate-100 text-right font-black text-emerald-700 whitespace-nowrap">
+                      R$ {fmt(v.comissao_calculada)}
+                    </td>
+                    <td className="px-4 py-2.5 border-r border-slate-100 text-center">
+                      <span className={`flex items-center justify-center gap-1 px-2 py-0.5 text-[9px] font-black border w-fit mx-auto ${cfg.cls}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                        {cfg.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 border-r border-slate-100 text-[10px] font-bold text-slate-400">
+                      {v.data_pagamento ? fmtDate(v.data_pagamento) : '---'}
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-2.5 text-center">
+                        {v.status !== 'Pago' ? (
+                          <Button
+                            size="sm"
+                            onClick={() => handleMarcarPago(v.id)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-none text-[9px] font-black uppercase h-7 px-3"
+                          >
+                            <CheckCircle2 size={10} className="mr-1" /> Confirmar
+                          </Button>
+                        ) : (
+                          <CheckCircle2 size={16} className="text-emerald-500 mx-auto" />
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+            {/* RODAPÉ TOTALIZADOR */}
+            {vencimentosFiltrados.length > 0 && (
+              <tfoot>
+                <tr className="bg-[#0A3D73] text-white text-[10px] font-black">
+                  <td colSpan={4} className="px-4 py-2.5 text-right uppercase tracking-widest">
+                    Total ({vencimentosFiltrados.length} venc.):
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-black font-mono">
+                    R$ {fmt(vencimentosFiltrados.reduce((a, v) => a + (v.comissao_calculada || 0), 0))}
+                  </td>
+                  <td colSpan={isAdmin ? 3 : 2} />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </Card>
     </div>
   );
 };

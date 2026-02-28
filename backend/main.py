@@ -165,6 +165,8 @@ class ItemPedido(BaseModel):
     valor_unitario: Optional[float] = 0.0
     subtotal: Optional[float] = 0.0
     ipi: Optional[float] = 0.0
+    comissao_percent: Optional[float] = 0.0  # Ex: 1.5, 2.0, 3.0
+    comissao_valor: Optional[float] = 0.0    # Calculado: subtotal * comissao_percent / 100
 
 
 class PedidoSchema(BaseModel):
@@ -452,28 +454,65 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
     total_clientes = await db.clientes.count_documents({})
     total_materiais = await db.materiais.count_documents({})
 
-    valor_total_mes = sum(p.get("valor_total", 0) for p in pedidos_mes)
-    peso_total_mes = sum(p.get("peso_total", 0) for p in pedidos_mes)
-
     pedidos_por_status = {}
     for p in todos_pedidos:
         s = p.get("status", "PENDENTE")
         pedidos_por_status[s] = pedidos_por_status.get(s, 0) + 1
 
-    tonelagem_implantada = sum(p.get("peso_total", 0) for p in pedidos_mes if p.get("status") == "IMPLANTADO") / 1000
-    tonelagem_faturada = sum(p.get("peso_total", 0) for p in pedidos_mes if p.get("status") == "NF_EMITIDA") / 1000
+    # Tonelagem
+    tonelagem_implantada = sum(
+        p.get("peso_total", 0) for p in pedidos_mes
+        if p.get("status") in ("IMPLANTADO", "PENDENTE")
+    ) / 1000
+    tonelagem_faturada = sum(
+        p.get("peso_total", 0) for p in pedidos_mes
+        if p.get("status") == "NF_EMITIDA"
+    ) / 1000
+
+    # Valores financeiros
+    pedidos_mes_valor = sum(p.get("valor_total", 0) for p in pedidos_mes)
+    faturado_mes_valor = sum(
+        p.get("valor_total", 0) for p in pedidos_mes
+        if p.get("status") == "NF_EMITIDA"
+    )
+
+    # Comissões — calculadas com base no campo comissao_valor de cada item do pedido
+    comissao_prevista = round(sum(
+        item.get("comissao_valor", 0)
+        for p in pedidos_mes for item in p.get("itens", [])
+    ), 2)
+    comissao_realizada = round(sum(
+        item.get("comissao_valor", 0)
+        for p in pedidos_mes if p.get("status") == "NF_EMITIDA"
+        for item in p.get("itens", [])
+    ), 2)
+    comissao_mes = comissao_realizada
+    comissoes_a_receber = round(comissao_prevista - comissao_realizada, 2)
 
     return {
+        # Campos esperados pelo Dashboard frontend
+        "tonelagem_implantada": round(tonelagem_implantada, 3),
+        "comissao_prevista": comissao_prevista,
+        "tonelagem_faturada": round(tonelagem_faturada, 3),
+        "comissao_realizada": comissao_realizada,
+        "pedidos_mes_valor": round(pedidos_mes_valor, 2),
+        "faturado_mes_valor": round(faturado_mes_valor, 2),
+        "comissao_mes": comissao_mes,
+        "comissoes_a_receber": comissoes_a_receber,
+        # Campos extras
         "total_clientes": total_clientes,
         "total_materiais": total_materiais,
         "total_pedidos": len(todos_pedidos),
         "pedidos_mes": len(pedidos_mes),
-        "valor_total_mes": round(valor_total_mes, 2),
-        "peso_total_mes": round(peso_total_mes, 2),
-        "tonelagem_implantada": round(tonelagem_implantada, 3),
-        "tonelagem_faturada": round(tonelagem_faturada, 3),
         "pedidos_por_status": pedidos_por_status,
     }
+
+
+# Rota de metas — retorna lista vazia por enquanto para nao quebrar o Dashboard
+@app.get("/api/metas")
+async def listar_metas(usuario=Depends(verificar_token)):
+    metas = await db.metas.find().to_list(length=100)
+    return [serialize(m) for m in metas]
 
 
 # ============================================================

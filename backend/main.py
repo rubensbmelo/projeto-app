@@ -510,11 +510,58 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
     }
 
 
-# Rota de metas — retorna lista vazia por enquanto para nao quebrar o Dashboard
+# ============================================================
+# 14. Metas
+# ============================================================
+
+class MetaSchema(BaseModel):
+    cliente_id: str
+    mes: str        # "1" a "12"
+    ano: int = 2026
+    valor_ton: float = 0.0
+
 @app.get("/api/metas")
 async def listar_metas(usuario=Depends(verificar_token)):
-    metas = await db.metas.find().to_list(length=100)
+    metas = await db.metas.find().to_list(length=1000)
     return [serialize(m) for m in metas]
+
+@app.post("/api/metas", status_code=201)
+async def criar_meta(meta: MetaSchema, usuario=Depends(apenas_admin)):
+    # Verifica se já existe meta para esse cliente/mês/ano
+    existente = await db.metas.find_one({
+        "cliente_id": meta.cliente_id,
+        "mes": meta.mes,
+        "ano": meta.ano
+    })
+    if existente:
+        # Atualiza ao invés de duplicar
+        await db.metas.update_one(
+            {"_id": existente["_id"]},
+            {"$set": {"valor_ton": meta.valor_ton, "atualizado_em": datetime.now(timezone.utc).isoformat()}}
+        )
+        return {"message": "Meta atualizada!"}
+    doc = meta.dict()
+    doc["criado_em"] = datetime.now(timezone.utc).isoformat()
+    doc["criado_por"] = usuario["email"]
+    await db.metas.insert_one(doc)
+    return {"message": "Meta cadastrada!"}
+
+@app.put("/api/metas/{meta_id}")
+async def atualizar_meta(meta_id: str, meta: MetaSchema, usuario=Depends(apenas_admin)):
+    result = await db.metas.update_one(
+        {"_id": to_object_id(meta_id)},
+        {"$set": {**meta.dict(), "atualizado_em": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Meta não encontrada")
+    return {"message": "Meta atualizada!"}
+
+@app.delete("/api/metas/{meta_id}")
+async def deletar_meta(meta_id: str, usuario=Depends(apenas_admin)):
+    result = await db.metas.delete_one({"_id": to_object_id(meta_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Meta não encontrada")
+    return {"message": "Meta removida!"}
 
 
 # ============================================================

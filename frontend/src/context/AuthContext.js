@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-// 1. Importamos o nosso serviço centralizado
-import api from '../services/api'; 
+import api from '../services/api';
 
 const AuthContext = createContext();
 
@@ -17,12 +16,12 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
 
+  // Verifica sessão ao carregar a aplicação
   useEffect(() => {
     const initAuth = async () => {
       const storedToken = localStorage.getItem('token');
       if (storedToken) {
         try {
-          // O api.js já cuida de colocar o "Bearer" no header automaticamente
           const response = await api.get('/auth/me');
           setUser(response.data);
           setToken(storedToken);
@@ -36,18 +35,15 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
+  // Login
   const login = async (email, password) => {
     try {
-      const response = await api.post('/auth/login', { 
-        email: email, 
-        password: password 
-      });
-
+      const response = await api.post('/auth/login', { email, password });
       const { access_token, user: userData } = response.data;
 
-      // Salvamos no local para persistência
       localStorage.setItem('token', access_token);
-      
+      localStorage.setItem('user', JSON.stringify(userData));
+
       setToken(access_token);
       setUser(userData);
 
@@ -58,42 +54,52 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (nome, email, password) => {
+  // Logout
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+    api.defaults.headers.common['Authorization'] = '';
+  };
+
+  // Criar usuário — apenas admin pode chamar isso
+  const criarUsuario = async (nome, email, password, role = 'vendedor') => {
     try {
-      const response = await api.post('/auth/register', { nome, email, password });
-      const { access_token, user: userData } = response.data;
-
-      localStorage.setItem('token', access_token);
-
-      setToken(access_token);
-      setUser(userData);
-
-      return { success: true };
+      const response = await api.post('/usuarios', { nome, email, password, role });
+      return { success: true, data: response.data };
     } catch (error) {
       return {
         success: false,
-        error: error.response?.data?.detail || 'Erro ao registrar'
+        error: error.response?.data?.detail || 'Erro ao criar usuário'
       };
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-    // Limpamos o cache de autorização do axios
-    api.defaults.headers.common['Authorization'] = '';
+  // Trocar senha do usuário logado
+  const trocarSenha = async (senha_atual, nova_senha) => {
+    try {
+      await api.put('/auth/trocar-senha', { senha_atual, nova_senha });
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.detail || 'Erro ao trocar senha'
+      };
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      token, 
-      login, 
-      register, 
-      logout, 
+    <AuthContext.Provider value={{
+      user,
+      token,
       loading,
-      isAdmin: user?.role === 'admin' 
+      login,
+      logout,
+      criarUsuario,
+      trocarSenha,
+      isAdmin: user?.role === 'admin',
+      isVendedor: user?.role === 'vendedor',
     }}>
       {!loading && children}
     </AuthContext.Provider>

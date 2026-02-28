@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Package, Plus, Check, Lock, Search, Edit3, Weight, DollarSign, TrendingUp, FileText } from 'lucide-react';
+import { Package, Plus, Check, Lock, Search, Edit3, Weight, DollarSign, TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -55,6 +55,194 @@ const fmtDate = (d) => {
 };
 
 // ============================================================
+// CALENDÁRIO — DATE RANGE PICKER
+// ============================================================
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+const DateRangePicker = ({ dateStart, dateEnd, onChange, onClear }) => {
+  const today = new Date();
+  const [open, setOpen] = React.useState(false);
+  const [viewDate, setViewDate] = React.useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selecting, setSelecting] = React.useState('start'); // 'start' | 'end'
+  const [hoverDate, setHoverDate] = React.useState(null);
+  const ref = React.useRef(null);
+
+  // Fecha ao clicar fora
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+
+  const toDateStr = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const parseDate = (str) => str ? new Date(str + 'T00:00:00') : null;
+
+  const handleDayClick = (day) => {
+    const clicked = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    const str = toDateStr(clicked);
+    if (selecting === 'start') {
+      onChange({ start: str, end: null });
+      setSelecting('end');
+    } else {
+      const start = parseDate(dateStart);
+      if (clicked < start) {
+        onChange({ start: str, end: dateStart });
+      } else {
+        onChange({ start: dateStart, end: str });
+      }
+      setSelecting('start');
+      setOpen(false);
+    }
+  };
+
+  const isDayInRange = (day) => {
+    const d = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    const start = parseDate(dateStart);
+    const end = parseDate(dateEnd) || parseDate(hoverDate);
+    if (!start) return false;
+    if (!end) return toDateStr(d) === dateStart;
+    return d >= start && d <= end;
+  };
+
+  const isDayStart = (day) => {
+    const d = toDateStr(new Date(viewDate.getFullYear(), viewDate.getMonth(), day));
+    return d === dateStart;
+  };
+
+  const isDayEnd = (day) => {
+    const d = toDateStr(new Date(viewDate.getFullYear(), viewDate.getMonth(), day));
+    return d === (dateEnd || hoverDate);
+  };
+
+  const prevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
+  const nextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
+
+  const daysInMonth = getDaysInMonth(viewDate.getFullYear(), viewDate.getMonth());
+  const firstDay = getFirstDayOfMonth(viewDate.getFullYear(), viewDate.getMonth());
+
+  const labelBtn = () => {
+    if (dateStart && dateEnd) return `${fmtDate(dateStart)} → ${fmtDate(dateEnd)}`;
+    if (dateStart) return `A partir de ${fmtDate(dateStart)}`;
+    return 'Filtrar por Data';
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      {/* Botão trigger */}
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className={`flex items-center gap-2 h-9 px-3 text-[11px] font-bold uppercase tracking-wide border transition-all ${
+            dateStart
+              ? 'bg-[#0A3D73] text-white border-[#0A3D73]'
+              : 'bg-white text-slate-600 border-slate-300 hover:border-[#0A3D73] hover:text-[#0A3D73]'
+          }`}
+        >
+          <Calendar size={13} />
+          <span className="hidden sm:inline">{labelBtn()}</span>
+          <span className="sm:hidden">Data</span>
+        </button>
+        {(dateStart || dateEnd) && (
+          <button onClick={onClear} className="h-9 w-9 flex items-center justify-center bg-white border border-slate-300 hover:border-red-400 hover:text-red-500 transition-all text-slate-400">
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
+      {/* Calendário dropdown */}
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-slate-200 shadow-2xl w-72 select-none">
+
+          {/* Header do calendário */}
+          <div className="flex items-center justify-between px-4 py-3 bg-[#0A3D73] text-white">
+            <button onClick={prevMonth} className="p-1 hover:bg-white/10 transition-colors rounded">
+              <ChevronLeft size={14} />
+            </button>
+            <span className="text-[11px] font-black uppercase tracking-widest">
+              {MESES[viewDate.getMonth()]} {viewDate.getFullYear()}
+            </span>
+            <button onClick={nextMonth} className="p-1 hover:bg-white/10 transition-colors rounded">
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {/* Instrução */}
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
+            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              {selecting === 'start' ? '① Selecione a data inicial' : '② Selecione a data final'}
+            </p>
+          </div>
+
+          {/* Dias da semana */}
+          <div className="grid grid-cols-7 px-3 pt-2">
+            {DIAS_SEMANA.map(d => (
+              <div key={d} className="text-center text-[9px] font-black text-slate-400 uppercase py-1">{d}</div>
+            ))}
+          </div>
+
+          {/* Dias do mês */}
+          <div className="grid grid-cols-7 px-3 pb-3 gap-y-0.5">
+            {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const inRange = isDayInRange(day);
+              const isStart = isDayStart(day);
+              const isEnd = isDayEnd(day);
+              const isToday = toDateStr(new Date(viewDate.getFullYear(), viewDate.getMonth(), day)) === toDateStr(today);
+
+              return (
+                <button
+                  key={day}
+                  onClick={() => handleDayClick(day)}
+                  onMouseEnter={() => {
+                    if (selecting === 'end' && dateStart) {
+                      setHoverDate(toDateStr(new Date(viewDate.getFullYear(), viewDate.getMonth(), day)));
+                    }
+                  }}
+                  onMouseLeave={() => setHoverDate(null)}
+                  className={`
+                    h-8 w-full text-[11px] font-bold transition-all
+                    ${isStart || isEnd ? 'bg-[#0A3D73] text-white' : ''}
+                    ${inRange && !isStart && !isEnd ? 'bg-blue-100 text-blue-800' : ''}
+                    ${!inRange && !isStart && !isEnd ? 'hover:bg-slate-100 text-slate-700' : ''}
+                    ${isToday && !isStart && !isEnd ? 'ring-1 ring-[#0A3D73] text-[#0A3D73] font-black' : ''}
+                  `}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Atalhos rápidos */}
+          <div className="border-t border-slate-100 px-3 py-2 flex flex-wrap gap-1.5">
+            {[
+              { label: 'Este mês', fn: () => { const n = new Date(); onChange({ start: toDateStr(new Date(n.getFullYear(), n.getMonth(), 1)), end: toDateStr(new Date(n.getFullYear(), n.getMonth() + 1, 0)) }); setSelecting('start'); setOpen(false); } },
+              { label: 'Mês anterior', fn: () => { const n = new Date(); onChange({ start: toDateStr(new Date(n.getFullYear(), n.getMonth() - 1, 1)), end: toDateStr(new Date(n.getFullYear(), n.getMonth(), 0)) }); setSelecting('start'); setOpen(false); } },
+              { label: 'Este ano', fn: () => { const n = new Date(); onChange({ start: `${n.getFullYear()}-01-01`, end: `${n.getFullYear()}-12-31` }); setSelecting('start'); setOpen(false); } },
+            ].map(s => (
+              <button key={s.label} onClick={s.fn} className="text-[9px] font-black uppercase tracking-wide px-2 py-1 bg-slate-100 hover:bg-[#0A3D73] hover:text-white transition-all text-slate-600">
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
 // COMPONENTE
 // ============================================================
 const Pedidos = () => {
@@ -67,6 +255,8 @@ const Pedidos = () => {
   const [editingPedido, setEditingPedido] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('TODOS');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
   const [clienteInput, setClienteInput] = useState('');
   const [showClientesDrop, setShowClientesDrop] = useState(false);
   const [formData, setFormData] = useState(FORM_INITIAL);
@@ -119,7 +309,17 @@ const Pedidos = () => {
         p.numero_oc?.toLowerCase().includes(termo) ||
         p.item_nome?.toLowerCase().includes(termo) ||
         p.numero_fabrica?.toLowerCase().includes(termo);
-      return matchStatus && matchSearch;
+
+      // Filtro de data de entrega
+      let matchDate = true;
+      if (dateStart || dateEnd) {
+        const dataEntrega = p.data_entrega ? p.data_entrega.substring(0, 10) : '';
+        if (dateStart && dateEnd) matchDate = dataEntrega >= dateStart && dataEntrega <= dateEnd;
+        else if (dateStart) matchDate = dataEntrega >= dateStart;
+        else if (dateEnd) matchDate = dataEntrega <= dateEnd;
+      }
+
+      return matchStatus && matchSearch && matchDate;
     });
     return {
       lista,
@@ -128,7 +328,7 @@ const Pedidos = () => {
       comissao: lista.reduce((a, p) => a + toNum(p.comissao_valor || p.itens?.[0]?.comissao_valor || 0), 0),
       qtde: lista.reduce((a, p) => a + (parseInt(p.quantidade) || 0), 0),
     };
-  }, [pedidos, filterStatus, searchTerm]);
+  }, [pedidos, filterStatus, searchTerm, dateStart, dateEnd]);
 
   // Preenche campos ao digitar FE
   const handleFEChange = (fe) => {
@@ -296,6 +496,12 @@ const Pedidos = () => {
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
+          <DateRangePicker
+            dateStart={dateStart}
+            dateEnd={dateEnd}
+            onChange={({ start, end }) => { setDateStart(start || ''); setDateEnd(end || ''); }}
+            onClear={() => { setDateStart(''); setDateEnd(''); }}
+          />
           <Button
             onClick={() => { resetForm(); setDialogOpen(true); }}
             className="bg-[#0A3D73] hover:bg-[#082D54] text-white rounded-none px-6 font-black text-[10px] uppercase h-9 tracking-widest"

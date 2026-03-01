@@ -246,9 +246,9 @@ const Comissoes = () => {
                 return (
                   <tr
                     key={v.id}
-                    className={`text-[11px] border-b border-slate-100 transition-colors ${
-                      idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
-                    } hover:bg-blue-50/40 ${v.status === 'Atrasado' ? 'border-l-2 border-l-red-400' : ''}`}
+                    className={`text-[11px] border-b border-slate-100 transition-colors hover:bg-blue-50 ${
+                      idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'
+                    } ${v.status === 'Atrasado' ? 'border-l-2 border-l-red-400' : ''}`}
                   >
                     <td className="px-4 py-2.5 border-r border-slate-100 font-mono font-black text-blue-800 whitespace-nowrap">
                       NF {v.numero_nf}

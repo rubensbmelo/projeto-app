@@ -291,6 +291,37 @@ async def ativar_usuario(usuario_id: str, admin=Depends(apenas_admin)):
     return {"message": "Usuário ativado!"}
 
 
+@app.put("/api/usuarios/{usuario_id}")
+async def editar_usuario(usuario_id: str, data: dict, admin=Depends(apenas_admin)):
+    campos = {k: v for k, v in data.items() if k in ["nome", "email", "role"]}
+    if not campos:
+        raise HTTPException(status_code=400, detail="Nenhum campo válido para atualizar")
+    await db.usuarios.update_one({"id": usuario_id}, {"$set": campos})
+    return {"message": "Usuário atualizado!"}
+
+
+@app.put("/api/usuarios/{usuario_id}/reset-senha")
+async def resetar_senha(usuario_id: str, data: dict, admin=Depends(apenas_admin)):
+    nova_senha = data.get("nova_senha")
+    if not nova_senha or len(nova_senha) < 6:
+        raise HTTPException(status_code=400, detail="Senha deve ter no mínimo 6 caracteres")
+    await db.usuarios.update_one(
+        {"id": usuario_id},
+        {"$set": {"senha_hash": gerar_hash_senha(nova_senha)}}
+    )
+    return {"message": "Senha resetada com sucesso!"}
+
+
+@app.delete("/api/usuarios/{usuario_id}")
+async def deletar_usuario(usuario_id: str, admin=Depends(apenas_admin)):
+    # Não permite deletar a si mesmo
+    doc = await db.usuarios.find_one({"id": usuario_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    await db.usuarios.delete_one({"id": usuario_id})
+    return {"message": "Usuário removido!"}
+
+
 # ============================================================
 # 10. Materiais
 # ============================================================

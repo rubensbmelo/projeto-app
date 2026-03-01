@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Mail, Lock, LayoutDashboard, ShieldCheck } from 'lucide-react';
+import { Loader2, Mail, Lock, ShieldCheck } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -46,13 +46,16 @@ const Login = () => {
         
         <div className="relative z-10 flex flex-col justify-center px-20 text-white">
           <div className="bg-white/10 backdrop-blur-md border border-white/20 w-16 h-16 rounded-none flex items-center justify-center mb-8 shadow-2xl">
-            <LayoutDashboard size={32} className="text-white" />
+            <span className="text-white font-black text-xl tracking-tighter">RF</span>
           </div>
-          <h1 className="text-6xl font-black mb-6 tracking-tighter leading-none uppercase">
-            Núcleo de <br /> Representação
+          <h1 className="text-6xl font-black mb-3 tracking-tighter leading-none uppercase">
+            RepFlow
           </h1>
-          <p className="text-xl text-blue-100 max-w-md leading-relaxed font-light italic">
-            Sincronização em tempo real de pedidos, estoques e performance financeira.
+          <p className="text-blue-300 font-black text-[11px] uppercase tracking-[0.3em] mb-6">
+            Gestão de Representação Comercial
+          </p>
+          <p className="text-lg text-blue-100 max-w-md leading-relaxed font-light italic">
+            Sincronização em tempo real de pedidos, metas e performance financeira.
           </p>
           
           <div className="mt-16 flex items-center gap-6">
@@ -68,8 +71,11 @@ const Login = () => {
       <div className="flex-1 flex items-center justify-center px-6 py-12 md:px-12 bg-[#E9EEF2] lg:bg-white">
         <div className="w-full max-w-sm space-y-10">
           <div className="space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-black text-[#0A3D73] bg-blue-50 border border-blue-200 px-2 py-0.5 uppercase tracking-widest">RepFlow</span>
+            </div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">
-              Login de Usuário
+              Acesso ao Sistema
             </h2>
             <div className="h-1.5 w-12 bg-[#0A3D73]" />
           </div>

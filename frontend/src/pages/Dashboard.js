@@ -65,7 +65,7 @@ const Dashboard = () => {
 
   const semana = getSemanaAtual();
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAll = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);

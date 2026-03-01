@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Package, FileText,
-  Receipt, DollarSign, Target, LogOut, Menu, X, ChevronRight
+  Receipt, DollarSign, Target, LogOut, Menu, X, ChevronRight, UserCog
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -20,6 +20,7 @@ const Layout = ({ children }) => {
     { path: '/comissoes',     icon: DollarSign,      label: 'Comissões',     adminOnly: false, group: 'main' },
     { path: '/notas-fiscais', icon: Receipt,         label: 'Notas Fiscais', adminOnly: true,  group: 'admin' },
     { path: '/metas',         icon: Target,          label: 'Metas',         adminOnly: true,  group: 'admin' },
+    { path: '/usuarios',      icon: UserCog,         label: 'Usuários',      adminOnly: true,  group: 'admin' },
   ];
 
   const filteredMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);

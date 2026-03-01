@@ -10,6 +10,7 @@ import Pedidos from './pages/Pedidos';
 import NotasFiscais from './pages/NotasFiscais';
 import Comissoes from './pages/Comissoes';
 import Metas from './pages/Metas'; 
+import Usuarios from './pages/Usuarios';
 import Layout from './components/Layout';
 import './App.css';
 
@@ -54,6 +55,9 @@ function App() {
           } />
           <Route path="/metas" element={
             <ProtectedRoute adminOnly={true}><Metas /></ProtectedRoute>
+          } />
+          <Route path="/usuarios" element={
+            <ProtectedRoute adminOnly={true}><Usuarios /></ProtectedRoute>
           } />
           
           <Route path="*" element={<Navigate to="/" replace />} />

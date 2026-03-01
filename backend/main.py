@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
@@ -9,9 +10,12 @@ from datetime import datetime, timedelta, timezone
 import os
 import uuid
 import logging
+import io
 from dotenv import load_dotenv
 from jose import JWTError, jwt
 import bcrypt
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 # ============================================================
 # 1. Configurações
@@ -749,7 +753,105 @@ async def atualizar_vencimento(venc_id: str, data: VencimentoUpdateSchema, usuar
 
 
 # ============================================================
-# 16. Shutdown
+# 17. Exportação Excel — Comissões
+# ============================================================
+
+@app.get("/api/export/comissoes")
+async def exportar_comissoes(usuario=Depends(apenas_admin)):
+    # Busca dados
+    vencimentos = await db.vencimentos.find().sort("data_vencimento", 1).to_list(length=5000)
+    notas = await db.notas_fiscais.find().to_list(length=5000)
+    notas_map = {str(n["_id"]): n for n in notas}
+
+    # Cria workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Comissões"
+
+    # Estilos
+    header_fill = PatternFill("solid", fgColor="0A3D73")
+    header_font = Font(bold=True, color="FFFFFF", size=9)
+    header_align = Alignment(horizontal="center", vertical="center")
+    pago_fill   = PatternFill("solid", fgColor="D1FAE5")
+    atraso_fill = PatternFill("solid", fgColor="FEE2E2")
+    border = Border(
+        left=Side(style="thin", color="CCCCCC"),
+        right=Side(style="thin", color="CCCCCC"),
+        top=Side(style="thin", color="CCCCCC"),
+        bottom=Side(style="thin", color="CCCCCC"),
+    )
+
+    # Cabeçalho
+    headers = ["NF", "Cliente", "Parcela", "Total Parcelas", "Vencimento", "Valor Parcela (R$)", "Comissão (R$)", "Status", "Data Pagamento"]
+    ws.append(headers)
+    for col, _ in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_align
+        cell.border = border
+
+    # Dados
+    for v in vencimentos:
+        nota = notas_map.get(str(v.get("nota_fiscal_id", "")), {})
+        status_v = v.get("status", "Pendente")
+        row = [
+            v.get("numero_nf") or nota.get("numero_nf", ""),
+            v.get("cliente_nome") or nota.get("cliente_nome", ""),
+            v.get("parcela", ""),
+            v.get("total_parcelas", ""),
+            v.get("data_vencimento", ""),
+            v.get("valor_parcela", 0),
+            v.get("comissao_calculada", 0),
+            status_v,
+            v.get("data_pagamento") or "",
+        ]
+        ws.append(row)
+        row_idx = ws.max_row
+        fill = pago_fill if status_v == "Pago" else (atraso_fill if status_v == "Atrasado" else None)
+        for col in range(1, len(headers) + 1):
+            cell = ws.cell(row=row_idx, column=col)
+            cell.border = border
+            cell.font = Font(size=9)
+            cell.alignment = Alignment(vertical="center")
+            if fill:
+                cell.fill = fill
+            if col in [6, 7]:
+                cell.number_format = 'R$ #,##0.00'
+
+    # Largura das colunas
+    col_widths = [12, 30, 9, 14, 14, 20, 16, 12, 16]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+
+    ws.row_dimensions[1].height = 20
+
+    # Totais por status
+    ws.append([])
+    ws.append(["", "", "", "", "TOTAL PAGO", "", sum(v.get("comissao_calculada", 0) for v in vencimentos if v.get("status") == "Pago")])
+    ws.append(["", "", "", "", "TOTAL PENDENTE", "", sum(v.get("comissao_calculada", 0) for v in vencimentos if v.get("status") == "Pendente")])
+    ws.append(["", "", "", "", "TOTAL ATRASADO", "", sum(v.get("comissao_calculada", 0) for v in vencimentos if v.get("status") == "Atrasado")])
+
+    for r in [ws.max_row - 2, ws.max_row - 1, ws.max_row]:
+        ws.cell(row=r, column=5).font = Font(bold=True, size=9)
+        ws.cell(row=r, column=7).font = Font(bold=True, size=9)
+        ws.cell(row=r, column=7).number_format = 'R$ #,##0.00'
+
+    # Retorna como stream
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    nome_arquivo = f"comissoes_{datetime.now().strftime('%d-%m-%Y')}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"}
+    )
+
+
+# ============================================================
+# 18. Shutdown
 # ============================================================
 
 @app.on_event("shutdown")

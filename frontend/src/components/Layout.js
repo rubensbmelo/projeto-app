@@ -75,14 +75,9 @@ const Layout = ({ children }) => {
       <div className="px-4 pt-5 pb-4 border-b border-white/5">
         {/* Bloco de marca */}
         <div className="flex items-center gap-2.5 mb-0.5">
-          <div className="w-6 h-6 bg-[#0A3D73] border border-[#4A90D9]/40 flex items-center justify-center shrink-0">
-            <span className="text-[9px] font-black text-[#4A90D9]">RF</span>
-          </div>
-          <div>
-            <p className="text-[12px] font-black text-white uppercase tracking-widest leading-none">RepFlow</p>
-            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-0.5">Representação Comercial</p>
-          </div>
+          <img src="/logo-repflow.png" alt="RepFlow" className="h-8 w-auto" />
         </div>
+        <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-1.5">Representação Comercial</p>
       </div>
 
       {/* ── NAV PRINCIPAL ── */}
@@ -167,7 +162,7 @@ const Layout = ({ children }) => {
             style={{ background: 'linear-gradient(180deg, #0d1117 0%, #111827 60%, #0f172a 100%)' }}
           >
             <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
-              <p className="text-[11px] font-black text-white uppercase tracking-widest">RepFlow</p>
+              <img src="/logo-repflow.png" alt="RepFlow" className="h-7 w-auto" />
               <button onClick={() => setSidebarOpen(false)} className="p-1 hover:bg-white/10 rounded transition-colors">
                 <X size={14} className="text-slate-400" />
               </button>

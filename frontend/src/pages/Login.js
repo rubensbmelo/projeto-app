@@ -45,9 +45,7 @@ const Login = () => {
         <div className="absolute inset-0 bg-gradient-to-br from-[#0A3D73]/95 via-[#0A3D73]/80 to-blue-900/40" />
         
         <div className="relative z-10 flex flex-col justify-center px-20 text-white">
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 w-16 h-16 rounded-none flex items-center justify-center mb-8 shadow-2xl">
-            <span className="text-white font-black text-xl tracking-tighter">RF</span>
-          </div>
+          <img src="/logo-repflow.png" alt="RepFlow" className="h-14 w-auto mb-8 brightness-0 invert" />
           <h1 className="text-6xl font-black mb-3 tracking-tighter leading-none uppercase">
             RepFlow
           </h1>

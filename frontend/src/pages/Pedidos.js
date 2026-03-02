@@ -46,6 +46,7 @@ const fmt = (v, c = 2) =>
 
 const toNum = (v) => {
   if (!v && v !== 0) return 0;
+  if (typeof v === 'number') return v;
   return parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0;
 };
 

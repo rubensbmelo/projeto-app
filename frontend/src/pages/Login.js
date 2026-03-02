@@ -45,10 +45,7 @@ const Login = () => {
         <div className="absolute inset-0 bg-gradient-to-br from-[#0A3D73]/95 via-[#0A3D73]/80 to-blue-900/40" />
         
         <div className="relative z-10 flex flex-col justify-center px-20 text-white">
-          <img src="/logo-repflow.png" alt="RepFlow" className="h-14 w-auto mb-8 brightness-0 invert" />
-          <h1 className="text-6xl font-black mb-3 tracking-tighter leading-none uppercase">
-            RepFlow
-          </h1>
+          <img src="/logo-repflow.png" alt="RepFlow" className="h-24 w-auto mb-8 brightness-0 invert" />
           <p className="text-blue-300 font-black text-[11px] uppercase tracking-[0.3em] mb-6">
             Gestão de Representação Comercial
           </p>

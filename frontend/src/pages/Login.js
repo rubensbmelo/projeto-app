@@ -65,6 +65,11 @@ const Login = () => {
       {/* Coluna da Direita - Formulário SAP Style */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 md:px-12 bg-[#E9EEF2] lg:bg-white">
         <div className="w-full max-w-sm space-y-10">
+
+          {/* Logo mobile — só aparece em telas pequenas */}
+          <div className="flex justify-center lg:hidden">
+            <img src="/logo-repflow.png" alt="RepFlow" className="h-12 w-auto" />
+          </div>
           <div className="space-y-2">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[11px] font-black text-[#0A3D73] bg-blue-50 border border-blue-200 px-2 py-0.5 uppercase tracking-widest">RepFlow</span>

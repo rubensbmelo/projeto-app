@@ -649,15 +649,19 @@ async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
 
     # 2. Calcula comissão total da NF
-    comissao_percent = float(pedido.get("comissao_percent") or pedido.get("comissao_valor", 0) or 0)
-    # Se comissao_percent > 0 usamos %, senão tentamos buscar do material
+    # Busca o % de comissão direto do material pelo numero_fe
+    comissao_percent = 0.0
+    numero_fe = pedido.get("numero_fe", "")
+    if numero_fe:
+        material = await db.materiais.find_one({"numero_fe": numero_fe})
+        if material:
+            comissao_percent = float(material.get("comissao", 0) or 0)
+    
+    # Fallback: tenta pegar do item do pedido
     if comissao_percent <= 0:
-        # Tenta buscar pelo numero_fe do pedido
-        numero_fe = pedido.get("numero_fe", "")
-        if numero_fe:
-            material = await db.materiais.find_one({"numero_fe": numero_fe})
-            if material:
-                comissao_percent = float(material.get("comissao", 0) or 0)
+        itens = pedido.get("itens", [])
+        if itens:
+            comissao_percent = float(itens[0].get("comissao_percent", 0) or 0)
 
     comissao_total = nota.valor_total * comissao_percent / 100
     comissao_por_parcela = round(comissao_total / nota.numero_parcelas, 2)

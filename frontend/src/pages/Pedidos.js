@@ -277,6 +277,7 @@ const Pedidos = () => {
   const [entregaDialog, setEntregaDialog] = useState(false);
   const [entregaPedido, setEntregaPedido] = useState(null);
   const [entregaForm, setEntregaForm] = useState(ENTREGA_FORM_INITIAL);
+  const [formData, setFormData] = useState(FORM_INITIAL);
 
   useEffect(() => {
     const fetchData = async () => {

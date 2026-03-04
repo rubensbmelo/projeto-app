@@ -339,10 +339,13 @@ const Pedidos = () => {
 
       return matchStatus && matchSearch && matchDate;
     });
+    const peso = lista.reduce((a, p) => a + toNum(p.peso_total), 0);
+    const valor = lista.reduce((a, p) => a + toNum(p.valor_total), 0);
     return {
       lista,
-      peso: lista.reduce((a, p) => a + toNum(p.peso_total), 0),
-      valor: lista.reduce((a, p) => a + toNum(p.valor_total), 0),
+      peso,
+      valor,
+      fatorMedio: peso > 0 ? valor / peso : 0,
       comissao: lista.reduce((a, p) => a + toNum(p.comissao_valor || p.itens?.[0]?.comissao_valor || 0), 0),
       qtde: lista.reduce((a, p) => a + (parseInt(p.quantidade) || 0), 0),
     };
@@ -621,11 +624,12 @@ const Pedidos = () => {
       </div>
 
       {/* TOTALIZADORES */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         {[
           { label: 'Peso Total', value: `${fmt(totais.peso / 1000, 3)} TON`, subvalue: `${fmt(totais.peso)} KG`, icon: Weight, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
           { label: 'Qtde Total', value: totais.qtde.toLocaleString('pt-BR'), icon: Package, color: 'text-slate-700', bg: 'bg-white border-slate-200' },
           { label: 'Valor Total', value: `R$ ${fmt(totais.valor)}`, icon: DollarSign, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+          { label: 'Fator Médio R$/KG', value: `R$ ${fmt(totais.fatorMedio)}`, subvalue: 'valor ÷ peso total', icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-300' },
           { label: 'Comissão Total', value: `R$ ${fmt(totais.comissao)}`, icon: TrendingUp, color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
         ].map((item, i) => (
           <div key={i} className={`flex items-center gap-3 p-3 border ${item.bg}`}>
@@ -750,7 +754,7 @@ const Pedidos = () => {
                   <td className="px-3 py-2 text-right font-mono">{fmt(totais.peso)}</td>
                   <td className="px-3 py-2 text-right font-mono">{totais.qtde.toLocaleString('pt-BR')}</td>
                   <td className="px-3 py-2" />
-                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2 text-right font-mono">R$ {fmt(totais.fatorMedio)}</td>
                   <td className="px-3 py-2 text-right font-mono">R$ {fmt(totais.valor)}</td>
                   <td className="px-3 py-2 text-right font-mono">R$ {fmt(totais.comissao)}</td>
                   <td className="px-3 py-2" />

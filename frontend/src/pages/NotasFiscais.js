@@ -28,6 +28,7 @@ const FORM_INITIAL = {
   data_p2: '',
   data_p3: '',
   qtde_entregue: '',
+  motivo_entrega: '',
 };
 
 const STATUS_VENC = {
@@ -90,6 +91,7 @@ const NotasFiscais = () => {
         numero_parcelas: parseInt(formData.numero_parcelas),
         datas_manuais: [formData.data_p1, formData.data_p2, formData.data_p3].filter(Boolean),
         qtde_entregue: formData.qtde_entregue ? parseInt(formData.qtde_entregue) : null,
+        motivo_entrega: formData.motivo_entrega || null,
       };
       await api.post('/notas-fiscais', payload);
       toast.success('NF lançada e vencimentos gerados!');
@@ -494,6 +496,23 @@ const NotasFiscais = () => {
                       Variação: {previewVariacao.semaforo} {previewVariacao.label}
                       {previewVariacao.ok ? ' — dentro da tolerância ✓' : ' — fora da tolerância de 10%!'}
                     </span>
+                  </div>
+                )}
+
+                {/* Motivo — aparece quando há variação */}
+                {previewVariacao && !previewVariacao.ok && (
+                  <div className="mt-3 space-y-1">
+                    <label className={`${sapLabel} text-amber-700`}>Como tratar o saldo? *</label>
+                    {[
+                      { value: 'cliente_aceitou', label: '✅ Cliente aceitou — fechar pedido' },
+                      { value: 'fabrica_liquidou', label: '🏭 Fábrica liquidou — fechar pedido' },
+                      { value: 'entrega_parcial', label: `📦 Entrega parcial — criar saldo de ${Math.max(0, qtdePedida - (parseInt(formData.qtde_entregue) || 0)).toLocaleString('pt-BR')} un` },
+                    ].map(op => (
+                      <label key={op.value} className={`flex items-center gap-2 p-2 border cursor-pointer text-[10px] font-black uppercase transition-all ${formData.motivo_entrega === op.value ? 'bg-blue-50 border-blue-400' : 'bg-white border-slate-200 hover:border-slate-400'}`}>
+                        <input type="radio" name="motivo_nf" value={op.value} checked={formData.motivo_entrega === op.value} onChange={e => setFormData({ ...formData, motivo_entrega: e.target.value })} />
+                        {op.label}
+                      </label>
+                    ))}
                   </div>
                 )}
               </div>

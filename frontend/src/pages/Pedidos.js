@@ -72,6 +72,9 @@ const ENTREGA_FORM_INITIAL = {
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
+const sapInput = "bg-white border-slate-300 focus:border-[#0A3D73] focus:ring-1 focus:ring-[#0A3D73]/20 rounded-none h-9 text-xs font-bold uppercase px-3 w-full outline-none transition-all";
+const sapLabel = "text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1 block";
+
 const DateRangePicker = ({ dateStart, dateEnd, onChange, onClear }) => {
   const today = new Date();
   const [open, setOpen] = React.useState(false);
@@ -572,9 +575,6 @@ const Pedidos = () => {
       toast.error(err.response?.data?.detail || 'Erro ao registrar entrega');
     }
   };
-
-  const sapInput = "bg-white border-slate-300 focus:border-[#0A3D73] focus:ring-1 focus:ring-[#0A3D73]/20 rounded-none h-9 text-xs font-bold uppercase px-3 w-full outline-none transition-all";
-  const sapLabel = "text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1 block";
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-[80vh] gap-4">

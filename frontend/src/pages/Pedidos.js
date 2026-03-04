@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Package, Plus, Check, Lock, Search, Edit3, Weight, DollarSign, TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Package, Plus, Check, Lock, Search, Edit3, Weight, DollarSign, TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, X, GitBranch, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -55,9 +55,20 @@ const fmtDate = (d) => {
   return new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
-// ============================================================
-// CALENDÁRIO — DATE RANGE PICKER
-// ============================================================
+// Helper nome fantasia — pega primeiro nome significativo
+const nomeFantasia = (nomeCompleto) => {
+  if (!nomeCompleto) return '---';
+  const stop = ['S/A', 'SA', 'LTDA', 'LTDA-ME', 'ME', 'EIRELI', 'IND', 'COM', 'E', 'DE', 'DO', 'DA', 'DOS', 'DAS', 'IND.', 'COM.', 'S.A.'];
+  const partes = nomeCompleto.toUpperCase().split(' ');
+  const significativas = partes.filter(p => !stop.includes(p) && p.length > 1);
+  return significativas.slice(0, 2).join(' ') || nomeCompleto.split(' ')[0];
+};
+
+const ENTREGA_FORM_INITIAL = {
+  qtde_entregue: '',
+  motivo: 'cliente_aceitou', // cliente_aceitou | fabrica_liquidou | entrega_parcial
+  observacao: '',
+};
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
@@ -260,7 +271,9 @@ const Pedidos = () => {
   const [dateEnd, setDateEnd] = useState('');
   const [clienteInput, setClienteInput] = useState('');
   const [showClientesDrop, setShowClientesDrop] = useState(false);
-  const [formData, setFormData] = useState(FORM_INITIAL);
+  const [entregaDialog, setEntregaDialog] = useState(false);
+  const [entregaPedido, setEntregaPedido] = useState(null);
+  const [entregaForm, setEntregaForm] = useState(ENTREGA_FORM_INITIAL);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -466,6 +479,100 @@ const Pedidos = () => {
     setEditingPedido(null);
   };
 
+  const handleAbrirEntrega = (e, pedido) => {
+    e.stopPropagation();
+    setEntregaPedido(pedido);
+    setEntregaForm({ ...ENTREGA_FORM_INITIAL, qtde_entregue: String(pedido.quantidade || '') });
+    setEntregaDialog(true);
+  };
+
+  const handleConfirmarEntrega = async () => {
+    const qtdeEntregue = parseInt(entregaForm.qtde_entregue) || 0;
+    const qtdePedida = parseInt(entregaPedido.quantidade) || 0;
+    const saldo = qtdePedida - qtdeEntregue;
+
+    try {
+      // 1. Atualiza pedido original com qtde real e histórico
+      const historicoEntrega = {
+        qtde_pedida: qtdePedida,
+        qtde_entregue: qtdeEntregue,
+        variacao_percent: qtdePedida > 0 ? ((qtdeEntregue - qtdePedida) / qtdePedida * 100).toFixed(1) : 0,
+        motivo: entregaForm.motivo,
+        observacao: entregaForm.observacao,
+        registrado_em: new Date().toISOString(),
+      };
+
+      const pesoUnit = qtdePedida > 0 ? toNum(entregaPedido.peso_total) / qtdePedida : 0;
+      const precoMilheiro = toNum(entregaPedido.itens?.[0]?.valor_unitario || 0);
+      const comissaoPercent = toNum(entregaPedido.itens?.[0]?.comissao_percent || 0);
+      const novoValorTotal = (qtdeEntregue / 1000) * precoMilheiro;
+      const novoPesoTotal = qtdeEntregue * pesoUnit;
+      const novaComissao = novoValorTotal * comissaoPercent / 100;
+
+      await api.put(`/pedidos/${entregaPedido.id}`, {
+        ...entregaPedido,
+        quantidade: qtdeEntregue,
+        peso_total: novoPesoTotal,
+        valor_total: novoValorTotal,
+        comissao_valor: novaComissao,
+        historico_entrega: historicoEntrega,
+        itens: [{
+          ...(entregaPedido.itens?.[0] || {}),
+          quantidade: qtdeEntregue,
+          peso_calculado: novoPesoTotal,
+          subtotal: novoValorTotal,
+          comissao_valor: novaComissao,
+        }],
+      });
+
+      // 2. Se entrega parcial, cria pedido saldo
+      if (entregaForm.motivo === 'entrega_parcial' && saldo > 0) {
+        const numMae = entregaPedido.numero_fabrica || String(entregaPedido.numero_fabrica || '');
+        // Conta quantos pedidos saldo já existem
+        const saldosExistentes = pedidos.filter(p =>
+          p.numero_fabrica?.startsWith(numMae + '-S')
+        ).length;
+        const numSaldo = `${numMae}-S${saldosExistentes + 1}`;
+
+        const pesoSaldo = saldo * pesoUnit;
+        const valorSaldo = (saldo / 1000) * precoMilheiro;
+        const comissaoSaldo = valorSaldo * comissaoPercent / 100;
+
+        await api.post('/pedidos', {
+          cliente_nome: entregaPedido.cliente_nome,
+          item_nome: entregaPedido.item_nome,
+          numero_fabrica: numSaldo,
+          numero_fe: entregaPedido.numero_fe,
+          numero_oc: entregaPedido.numero_oc,
+          data_entrega: entregaPedido.data_entrega,
+          quantidade: saldo,
+          peso_total: pesoSaldo,
+          valor_total: valorSaldo,
+          comissao_valor: comissaoSaldo,
+          status: 'IMPLANTADO',
+          pedido_mae: entregaPedido.numero_fabrica,
+          observacoes: `Saldo do pedido ${entregaPedido.numero_fabrica}`,
+          itens: [{
+            ...(entregaPedido.itens?.[0] || {}),
+            quantidade: saldo,
+            peso_calculado: pesoSaldo,
+            subtotal: valorSaldo,
+            comissao_valor: comissaoSaldo,
+          }],
+        });
+        toast.success(`Pedido saldo ${numSaldo} criado com ${saldo.toLocaleString('pt-BR')} unidades!`);
+      } else {
+        toast.success('Entrega registrada e pedido atualizado!');
+      }
+
+      setEntregaDialog(false);
+      setEntregaPedido(null);
+      fetchPedidos();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Erro ao registrar entrega');
+    }
+  };
+
   const sapInput = "bg-white border-slate-300 focus:border-[#0A3D73] focus:ring-1 focus:ring-[#0A3D73]/20 rounded-none h-9 text-xs font-bold uppercase px-3 w-full outline-none transition-all";
   const sapLabel = "text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1 block";
 
@@ -515,7 +622,7 @@ const Pedidos = () => {
       {/* TOTALIZADORES */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
-          { label: 'Peso Total (KG)', value: fmt(totais.peso), icon: Weight, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+          { label: 'Peso Total', value: `${fmt(totais.peso / 1000, 3)} TON`, subvalue: `${fmt(totais.peso)} KG`, icon: Weight, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
           { label: 'Qtde Total', value: totais.qtde.toLocaleString('pt-BR'), icon: Package, color: 'text-slate-700', bg: 'bg-white border-slate-200' },
           { label: 'Valor Total', value: `R$ ${fmt(totais.valor)}`, icon: DollarSign, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
           { label: 'Comissão Total', value: `R$ ${fmt(totais.comissao)}`, icon: TrendingUp, color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
@@ -524,7 +631,8 @@ const Pedidos = () => {
             <item.icon size={18} className={item.color} />
             <div>
               <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">{item.label}</p>
-              <p className={`text-sm font-black ${item.color} font-mono`}>{item.value}</p>
+              <p className={`text-sm font-black ${item.color} font-mono leading-tight`}>{item.value}</p>
+              {item.subvalue && <p className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{item.subvalue}</p>}
             </div>
           </div>
         ))}
@@ -592,7 +700,10 @@ const Pedidos = () => {
                     <td className="px-3 py-2 border-r border-slate-100 font-mono font-bold text-blue-700 whitespace-nowrap">{p.numero_fe || '---'}</td>
                     <td className="px-3 py-2 border-r border-slate-100 font-bold text-amber-700 whitespace-nowrap">{p.numero_oc || '---'}</td>
                     <td className="px-3 py-2 border-r border-slate-100 font-bold uppercase max-w-[150px] truncate">{p.item_nome || '---'}</td>
-                    <td className="px-3 py-2 border-r border-slate-100 font-black uppercase whitespace-nowrap">{p.cliente_nome || '---'}</td>
+                    <td className="px-3 py-2 border-r border-slate-100 font-black uppercase whitespace-nowrap">
+                      <span title={p.cliente_nome}>{nomeFantasia(p.cliente_nome)}</span>
+                      {p.pedido_mae && <span className="ml-1 text-[8px] bg-amber-100 text-amber-700 border border-amber-300 px-1 font-black">SALDO</span>}
+                    </td>
                     <td className="px-3 py-2 border-r border-slate-100 text-right text-slate-600 whitespace-nowrap">{fmtDate(p.data_entrega)}</td>
                     <td className="px-3 py-2 border-r border-slate-100 text-right font-bold whitespace-nowrap">{fmt(p.peso_total)}</td>
                     <td className="px-3 py-2 border-r border-slate-100 text-right font-bold whitespace-nowrap">{(parseInt(p.quantidade) || 0).toLocaleString('pt-BR')}</td>
@@ -601,9 +712,28 @@ const Pedidos = () => {
                     <td className="px-3 py-2 border-r border-slate-100 text-right font-black text-slate-800 bg-slate-50/80 whitespace-nowrap">R$ {fmt(p.valor_total)}</td>
                     <td className="px-3 py-2 border-r border-slate-100 text-right font-bold text-emerald-700 whitespace-nowrap">{comissaoValor > 0 ? `R$ ${fmt(comissaoValor)}` : '---'}</td>
                     <td className="px-3 py-2 text-center whitespace-nowrap">
-                      <span className={`px-2 py-0.5 text-[9px] font-black border ${STATUS_CONFIG[p.status]?.cls || STATUS_CONFIG.PENDENTE.cls}`}>
-                        {STATUS_CONFIG[p.status]?.label || p.status}
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`px-2 py-0.5 text-[9px] font-black border ${STATUS_CONFIG[p.status]?.cls || STATUS_CONFIG.PENDENTE.cls}`}>
+                          {STATUS_CONFIG[p.status]?.label || p.status}
+                        </span>
+                        {p.status === 'IMPLANTADO' && isAdmin && (
+                          <button
+                            onClick={(e) => handleAbrirEntrega(e, p)}
+                            className="text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-1"
+                          >
+                            <GitBranch size={8} /> Entregar
+                          </button>
+                        )}
+                        {p.historico_entrega && (
+                          <span className={`text-[8px] font-black px-1 ${
+                            Math.abs(parseFloat(p.historico_entrega.variacao_percent)) <= 10
+                              ? 'text-emerald-600' : Math.abs(parseFloat(p.historico_entrega.variacao_percent)) <= 20
+                              ? 'text-amber-600' : 'text-red-600'
+                          }`}>
+                            {parseFloat(p.historico_entrega.variacao_percent) >= 0 ? '+' : ''}{p.historico_entrega.variacao_percent}%
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -747,6 +877,99 @@ const Pedidos = () => {
           </form>
         </DialogContent>
       </Dialog>
+      {/* DIALOG REGISTRAR ENTREGA */}
+      {entregaDialog && entregaPedido && (
+        <Dialog open={entregaDialog} onOpenChange={(o) => { setEntregaDialog(o); if (!o) setEntregaPedido(null); }}>
+          <DialogContent className="max-w-md bg-white rounded-none p-0 overflow-hidden border-none shadow-2xl">
+            <DialogHeader className="p-5 bg-[#0A3D73] text-white">
+              <DialogTitle className="text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 font-black">
+                <GitBranch size={15} /> Registrar Entrega — {entregaPedido.numero_fabrica}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="p-5 space-y-4">
+
+              {/* Info do pedido */}
+              <div className="bg-blue-50 border border-blue-200 p-3 text-[10px]">
+                <p className="font-black text-blue-800 uppercase">{nomeFantasia(entregaPedido.cliente_nome)} — {entregaPedido.item_nome}</p>
+                <p className="text-blue-600 font-bold mt-1">Qtde pedida: <span className="font-black">{(entregaPedido.quantidade || 0).toLocaleString('pt-BR')} unidades</span></p>
+              </div>
+
+              {/* Qtde entregue */}
+              <div>
+                <label className={sapLabel}>Qtde Entregue *</label>
+                <Input
+                  type="number"
+                  value={entregaForm.qtde_entregue}
+                  onChange={e => setEntregaForm({ ...entregaForm, qtde_entregue: e.target.value })}
+                  className={sapInput}
+                  placeholder="0"
+                />
+                {entregaForm.qtde_entregue && entregaPedido.quantidade && (() => {
+                  const v = ((parseInt(entregaForm.qtde_entregue) - entregaPedido.quantidade) / entregaPedido.quantidade * 100);
+                  const abs = Math.abs(v);
+                  const cor = abs <= 10 ? 'text-emerald-700 bg-emerald-50 border-emerald-300' : abs <= 20 ? 'text-amber-700 bg-amber-50 border-amber-300' : 'text-red-700 bg-red-50 border-red-300';
+                  const icon = abs <= 10 ? '🟢' : abs <= 20 ? '🟡' : '🔴';
+                  return (
+                    <div className={`mt-1 px-2 py-1 border text-[9px] font-black ${cor}`}>
+                      {icon} Variação: {v >= 0 ? '+' : ''}{v.toFixed(1)}%
+                      {parseInt(entregaForm.qtde_entregue) < entregaPedido.quantidade && (
+                        <span className="ml-2">· Saldo: {(entregaPedido.quantidade - parseInt(entregaForm.qtde_entregue)).toLocaleString('pt-BR')} un</span>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Motivo */}
+              <div>
+                <label className={sapLabel}>Como tratar o saldo? *</label>
+                <div className="space-y-2">
+                  {[
+                    { value: 'cliente_aceitou', label: '✅ Cliente aceitou — fechar pedido', desc: 'Pedido liquidado com a qtde entregue' },
+                    { value: 'fabrica_liquidou', label: '🏭 Fábrica liquidou — fechar pedido', desc: 'Fábrica não produzirá mais deste pedido' },
+                    { value: 'entrega_parcial', label: '📦 Entrega parcial — criar saldo', desc: `Saldo de ${Math.max(0, (entregaPedido.quantidade || 0) - (parseInt(entregaForm.qtde_entregue) || 0)).toLocaleString('pt-BR')} un vira novo pedido` },
+                  ].map(op => (
+                    <label key={op.value} className={`flex items-start gap-2 p-2 border cursor-pointer transition-all ${entregaForm.motivo === op.value ? 'bg-blue-50 border-blue-400' : 'bg-white border-slate-200 hover:border-slate-400'}`}>
+                      <input type="radio" name="motivo" value={op.value} checked={entregaForm.motivo === op.value} onChange={e => setEntregaForm({ ...entregaForm, motivo: e.target.value })} className="mt-0.5" />
+                      <div>
+                        <p className="text-[10px] font-black uppercase">{op.label}</p>
+                        <p className="text-[9px] text-slate-500 font-bold">{op.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Observação */}
+              <div>
+                <label className={sapLabel}>Observação (opcional)</label>
+                <input
+                  value={entregaForm.observacao}
+                  onChange={e => setEntregaForm({ ...entregaForm, observacao: e.target.value })}
+                  className={`${sapInput} h-16`}
+                  placeholder="Ex: Cliente confirmou aceite por e-mail"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-slate-200">
+                <Button type="button" variant="outline" onClick={() => setEntregaDialog(false)} className="rounded-none text-[10px] font-black uppercase px-6 h-10 border-slate-300 flex-1">
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmarEntrega}
+                  disabled={!entregaForm.qtde_entregue}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 rounded-none text-[10px] font-black uppercase h-10 flex-1"
+                >
+                  <CheckCircle2 size={12} className="mr-1" /> Confirmar Entrega
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+
     </div>
   );
 };

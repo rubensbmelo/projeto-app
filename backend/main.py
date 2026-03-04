@@ -189,6 +189,8 @@ class PedidoSchema(BaseModel):
     numero_oc: Optional[str] = ""
     condicao_pagamento: Optional[str] = ""
     observacoes: Optional[str] = ""
+    pedido_mae: Optional[str] = ""
+    historico_entrega: Optional[dict] = None
 
 
 # ============================================================

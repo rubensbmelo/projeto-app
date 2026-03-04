@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { FilePlus, Search, CalendarDays, ReceiptText, Lock, CheckCircle2, DollarSign, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { FilePlus, Search, CalendarDays, ReceiptText, Lock, CheckCircle2, DollarSign, Trash2, ChevronDown, ChevronUp, Package } from 'lucide-react';
 import { toast } from 'sonner';
 
 const fmt = (v) =>
@@ -27,12 +27,23 @@ const FORM_INITIAL = {
   data_p1: '',
   data_p2: '',
   data_p3: '',
+  qtde_entregue: '',
 };
 
 const STATUS_VENC = {
   Pago:     { cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
   Pendente: { cls: 'bg-blue-50 text-blue-700 border-blue-200',         dot: 'bg-blue-500' },
   Atrasado: { cls: 'bg-red-50 text-red-700 border-red-200',            dot: 'bg-red-500' },
+};
+
+const getVariacaoInfo = (qtdePedido, qtdeEntregue) => {
+  if (!qtdePedido || !qtdeEntregue) return null;
+  const variacao = ((qtdeEntregue - qtdePedido) / qtdePedido) * 100;
+  const abs = Math.abs(variacao);
+  const sinal = variacao >= 0 ? '+' : '';
+  if (abs <= 10) return { cor: 'bg-emerald-100 text-emerald-800 border-emerald-300', semaforo: '🟢', label: `${sinal}${variacao.toFixed(1)}%`, ok: true };
+  if (abs <= 20) return { cor: 'bg-amber-100 text-amber-800 border-amber-300', semaforo: '🟡', label: `${sinal}${variacao.toFixed(1)}%`, ok: false };
+  return { cor: 'bg-red-100 text-red-800 border-red-300', semaforo: '🔴', label: `${sinal}${variacao.toFixed(1)}%`, ok: false };
 };
 
 const NotasFiscais = () => {
@@ -45,6 +56,12 @@ const NotasFiscais = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedNota, setExpandedNota] = useState(null);
   const [formData, setFormData] = useState(FORM_INITIAL);
+
+  const pedidoSelecionado = pedidos.find(p => p.id === formData.pedido_id);
+  const qtdePedida = pedidoSelecionado?.quantidade || 0;
+  const previewVariacao = formData.qtde_entregue && qtdePedida
+    ? getVariacaoInfo(qtdePedida, parseInt(formData.qtde_entregue))
+    : null;
 
   useEffect(() => { fetchData(); }, []);
 
@@ -72,6 +89,7 @@ const NotasFiscais = () => {
         valor_total: parseFloat(String(formData.valor_total).replace(/\./g, '').replace(',', '.')) || 0,
         numero_parcelas: parseInt(formData.numero_parcelas),
         datas_manuais: [formData.data_p1, formData.data_p2, formData.data_p3].filter(Boolean),
+        qtde_entregue: formData.qtde_entregue ? parseInt(formData.qtde_entregue) : null,
       };
       await api.post('/notas-fiscais', payload);
       toast.success('NF lançada e vencimentos gerados!');
@@ -107,7 +125,9 @@ const NotasFiscais = () => {
   const getVencimentosDaNota = (notaId) =>
     vencimentos.filter(v => v.nota_fiscal_id === notaId);
 
-  // Pedidos disponíveis = não NF_EMITIDA ou o que já tem NF (para não duplicar)
+  const getPedidoDaNota = (nota) =>
+    pedidos.find(p => p.id === nota.pedido_id);
+
   const pedidosDisponiveis = pedidos.filter(p => p.status !== 'NF_EMITIDA' && p.status !== 'CANCELADO');
 
   const notasFiltradas = notas.filter(n => {
@@ -121,7 +141,6 @@ const NotasFiscais = () => {
     );
   });
 
-  // Totalizadores
   const totalNFs = notas.length;
   const totalFaturado = notas.reduce((a, n) => a + (n.valor_total || 0), 0);
   const totalComissao = notas.reduce((a, n) => a + (n.comissao_total || 0), 0);
@@ -196,6 +215,7 @@ const NotasFiscais = () => {
                 <th className="px-4 py-3 border-r border-blue-800">Cliente</th>
                 <th className="px-4 py-3 border-r border-blue-800 text-right">Valor NF</th>
                 <th className="px-4 py-3 border-r border-blue-800 text-right">Comissão</th>
+                <th className="px-4 py-3 border-r border-blue-800 text-center">Entrega</th>
                 <th className="px-4 py-3 border-r border-blue-800 text-center">Parcelas</th>
                 <th className="px-4 py-3 border-r border-blue-800 text-center">Situação</th>
                 {isAdmin && <th className="px-4 py-3 text-center">Ações</th>}
@@ -204,7 +224,7 @@ const NotasFiscais = () => {
             <tbody>
               {notasFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} className="text-center py-16 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                  <td colSpan={isAdmin ? 9 : 8} className="text-center py-16 text-slate-400 text-xs font-bold uppercase tracking-widest">
                     <ReceiptText size={32} className="mx-auto mb-3 opacity-30" />
                     Nenhuma nota fiscal encontrada
                   </td>
@@ -214,6 +234,10 @@ const NotasFiscais = () => {
                 const isExpanded = expandedNota === nota.id;
                 const todosPagos = vencs.length > 0 && vencs.every(v => v.status === 'Pago');
                 const temAtrasado = vencs.some(v => v.status === 'Atrasado');
+                const pedido = getPedidoDaNota(nota);
+                const variacaoInfo = nota.qtde_entregue && pedido?.quantidade
+                  ? getVariacaoInfo(pedido.quantidade, nota.qtde_entregue)
+                  : null;
 
                 return (
                   <React.Fragment key={nota.id}>
@@ -242,6 +266,23 @@ const NotasFiscais = () => {
                         R$ {fmt(nota.comissao_total)}
                         <p className="text-[9px] text-slate-400 font-bold">{fmt(nota.comissao_percent)}%</p>
                       </td>
+
+                      {/* SEMÁFORO DE ENTREGA */}
+                      <td className="px-4 py-2.5 border-r border-slate-100 text-center">
+                        {variacaoInfo ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className={`px-2 py-0.5 text-[9px] font-black border ${variacaoInfo.cor}`}>
+                              {variacaoInfo.semaforo} {variacaoInfo.label}
+                            </span>
+                            <span className="text-[8px] text-slate-400 font-bold font-mono">
+                              {nota.qtde_entregue?.toLocaleString('pt-BR')} / {pedido?.quantidade?.toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[9px] text-slate-300 font-bold">—</span>
+                        )}
+                      </td>
+
                       <td className="px-4 py-2.5 border-r border-slate-100 text-center font-black text-slate-600">
                         {nota.numero_parcelas}x
                       </td>
@@ -277,7 +318,7 @@ const NotasFiscais = () => {
                     {/* VENCIMENTOS EXPANDIDOS */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={isAdmin ? 8 : 7} className="p-0 border-b border-slate-200">
+                        <td colSpan={isAdmin ? 9 : 8} className="p-0 border-b border-slate-200">
                           <div className="bg-slate-50 border-t border-slate-200">
                             <div className="px-4 py-2 bg-slate-100 border-b border-slate-200">
                               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
@@ -408,7 +449,7 @@ const NotasFiscais = () => {
                 02 · Valor da NF
               </p>
               <div className="bg-blue-50 border border-blue-200 p-3">
-                <label className="text-[9px] font-black uppercase text-blue-700 mb-1 block flex items-center gap-1">
+                <label className="text-[9px] font-black uppercase text-blue-700 mb-1 flex items-center gap-1">
                   <DollarSign size={10} /> Valor Total Faturado (R$) *
                 </label>
                 <Input
@@ -421,10 +462,47 @@ const NotasFiscais = () => {
               </div>
             </div>
 
-            {/* BLOCO 3 — VENCIMENTOS */}
+            {/* BLOCO 3 — CONTROLE DE ENTREGA */}
             <div>
               <p className="text-[9px] font-black uppercase tracking-widest text-[#0A3D73] border-b border-[#0A3D73]/30 pb-1 mb-3">
-                03 · Cronograma de Vencimentos
+                03 · Controle de Entrega
+              </p>
+              <div className="bg-slate-50 border border-slate-200 p-3">
+                <div className="grid grid-cols-2 gap-3 items-end">
+                  <div>
+                    <label className={sapLabel}>Qtde Pedida</label>
+                    <div className="h-9 bg-slate-100 border border-slate-200 px-3 flex items-center text-xs font-black text-slate-500 font-mono">
+                      {qtdePedida ? qtdePedida.toLocaleString('pt-BR') : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <label className={sapLabel}>Qtde Entregue</label>
+                    <Input
+                      type="number"
+                      value={formData.qtde_entregue}
+                      onChange={e => setFormData({ ...formData, qtde_entregue: e.target.value })}
+                      placeholder="0"
+                      className={sapInput}
+                    />
+                  </div>
+                </div>
+                {/* Preview semáforo em tempo real */}
+                {previewVariacao && (
+                  <div className={`mt-2 px-3 py-2 border flex items-center gap-2 ${previewVariacao.cor}`}>
+                    <Package size={12} />
+                    <span className="text-[9px] font-black uppercase">
+                      Variação: {previewVariacao.semaforo} {previewVariacao.label}
+                      {previewVariacao.ok ? ' — dentro da tolerância ✓' : ' — fora da tolerância de 10%!'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* BLOCO 4 — VENCIMENTOS */}
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-[#0A3D73] border-b border-[#0A3D73]/30 pb-1 mb-3">
+                04 · Cronograma de Vencimentos
               </p>
               <div className="bg-slate-50 border border-slate-200 p-3 space-y-2">
                 <div>

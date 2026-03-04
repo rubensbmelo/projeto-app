@@ -631,6 +631,7 @@ class NotaFiscalSchema(BaseModel):
     numero_parcelas: int = 1
     datas_manuais: List[str] = []
     qtde_entregue: Optional[int] = None
+    motivo_entrega: Optional[str] = None
 
 class VencimentoUpdateSchema(BaseModel):
     status: Optional[str] = None
@@ -684,6 +685,7 @@ async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
         "comissao_total": comissao_total,
         "numero_parcelas": nota.numero_parcelas,
         "qtde_entregue": nota.qtde_entregue,
+        "motivo_entrega": nota.motivo_entrega,
         "criado_em": now,
         "criado_por": usuario["email"],
     }

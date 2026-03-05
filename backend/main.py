@@ -1,3 +1,5 @@
+✅ Schema
+✅ nota_doc
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -730,6 +732,23 @@ async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
     )
 
     return {"message": "NF criada e vencimentos gerados!", "nota_id": nota_id, "vencimentos_gerados": nota.numero_parcelas}
+
+class NotaFiscalUpdateSchema(BaseModel):
+    data_emissao: Optional[str] = None
+    numero_nf: Optional[str] = None
+
+@app.put("/api/notas-fiscais/{nota_id}")
+async def atualizar_nota(nota_id: str, data: NotaFiscalUpdateSchema, usuario=Depends(apenas_admin)):
+    campos = {k: v for k, v in data.dict().items() if v is not None}
+    if not campos:
+        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar")
+    result = await db.notas_fiscais.update_one(
+        {"_id": to_object_id(nota_id)},
+        {"$set": {**campos, "atualizado_em": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="NF não encontrada")
+    return {"message": "NF atualizada!"}
 
 @app.delete("/api/notas-fiscais/{nota_id}")
 async def deletar_nota(nota_id: str, usuario=Depends(apenas_admin)):

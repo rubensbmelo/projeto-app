@@ -912,7 +912,74 @@ async def exportar_comissoes(usuario=Depends(apenas_admin)):
 
 
 # ============================================================
-# 18. Shutdown
+# 18. Admin — Corrige cliente_id nos pedidos importados
+# ============================================================
+
+@app.post("/api/admin/fix-cliente-ids")
+async def fix_cliente_ids(admin=Depends(apenas_admin)):
+    """
+    Percorre todos os pedidos sem cliente_id e tenta vincular
+    ao cliente correto comparando cliente_nome com a lista de clientes.
+    """
+    clientes = await db.clientes.find().to_list(length=500)
+    pedidos_sem_id = await db.pedidos.find({
+        "$or": [
+            {"cliente_id": {"$exists": False}},
+            {"cliente_id": ""},
+            {"cliente_id": None}
+        ]
+    }).to_list(length=1000)
+
+    vinculados = 0
+    nao_encontrados = []
+
+    for pedido in pedidos_sem_id:
+        nome_pedido = (pedido.get("cliente_nome") or "").upper().strip()
+        if not nome_pedido:
+            continue
+
+        # Tenta match exato primeiro, depois parcial
+        cliente_match = None
+        for c in clientes:
+            nome_cli = (c.get("nome") or "").upper().strip()
+            if nome_cli == nome_pedido:
+                cliente_match = c
+                break
+
+        if not cliente_match:
+            for c in clientes:
+                nome_cli = (c.get("nome") or "").upper().strip()
+                # Match parcial: primeiro token do nome do pedido dentro do nome do cliente ou vice-versa
+                partes_pedido = nome_pedido.split()
+                if partes_pedido and any(p in nome_cli for p in partes_pedido[:2]):
+                    cliente_match = c
+                    break
+
+        if cliente_match:
+            cliente_id = str(cliente_match["_id"])
+            await db.pedidos.update_one(
+                {"_id": pedido["_id"]},
+                {"$set": {"cliente_id": cliente_id}}
+            )
+            # Atualiza tambem as NFs vinculadas a esse pedido
+            pedido_id_str = str(pedido["_id"])
+            await db.notas_fiscais.update_many(
+                {"pedido_id": pedido_id_str, "$or": [{"cliente_id": ""}, {"cliente_id": None}, {"cliente_id": {"$exists": False}}]},
+                {"$set": {"cliente_id": cliente_id}}
+            )
+            vinculados += 1
+        else:
+            nao_encontrados.append(nome_pedido)
+
+    return {
+        "message": f"{vinculados} pedidos vinculados com sucesso!",
+        "nao_encontrados": list(set(nao_encontrados)),
+        "total_processados": len(pedidos_sem_id)
+    }
+
+
+# ============================================================
+# 19. Shutdown
 # ============================================================
 
 @app.on_event("shutdown")

@@ -486,10 +486,14 @@ async def deletar_pedido(pedido_id: str, admin=Depends(apenas_admin)):
 @app.get("/api/dashboard/stats")
 async def get_dashboard_stats(usuario=Depends(verificar_token)):
     now = datetime.now(timezone.utc)
-    inicio_mes = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    inicio_mes = now.replace(day=1).strftime("%Y-%m-%d")   # ex: "2026-03-01"
+    fim_mes = now.strftime("%Y-%m-%d")                      # hoje
 
     todos_pedidos = await db.pedidos.find().to_list(length=1000)
-    pedidos_mes = [p for p in todos_pedidos if p.get("criado_em", "") >= inicio_mes]
+
+    # Pedidos implantados/pendentes criados no mes (carteira ativa)
+    inicio_mes_iso = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    pedidos_mes = [p for p in todos_pedidos if p.get("criado_em", "") >= inicio_mes_iso]
 
     total_clientes = await db.clientes.count_documents({})
     total_materiais = await db.materiais.count_documents({})
@@ -499,38 +503,66 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
         s = p.get("status", "PENDENTE")
         pedidos_por_status[s] = pedidos_por_status.get(s, 0) + 1
 
-    # Tonelagem
+    # Tonelagem implantada — pedidos do mes ainda nao faturados
     tonelagem_implantada = sum(
         p.get("peso_total", 0) for p in pedidos_mes
         if p.get("status") in ("IMPLANTADO", "PENDENTE")
     ) / 1000
-    tonelagem_faturada = sum(
-        p.get("peso_total", 0) for p in pedidos_mes
-        if p.get("status") == "NF_EMITIDA"
-    ) / 1000
 
-    # Valores financeiros
-    pedidos_mes_valor = sum(p.get("valor_total", 0) for p in pedidos_mes)
-    faturado_mes_valor = sum(
-        p.get("valor_total", 0) for p in pedidos_mes
-        if p.get("status") == "NF_EMITIDA"
-    )
+    # -------------------------------------------------------
+    # FATURADO — filtra pelas NFs com data_emissao no mes atual
+    # Usa data_emissao (competência real) em vez de criado_em do pedido
+    # -------------------------------------------------------
+    notas_mes = await db.notas_fiscais.find({
+        "data_emissao": {"$gte": inicio_mes, "$lte": fim_mes}
+    }).to_list(length=1000)
 
-    # Comissões — calculadas com base no campo comissao_valor de cada item do pedido
+    # Para NFs sem data_emissao ainda, usa criado_em como fallback
+    notas_sem_data = await db.notas_fiscais.find({
+        "data_emissao": None
+    }).to_list(length=1000)
+    notas_sem_data_mes = [
+        n for n in notas_sem_data
+        if n.get("criado_em", "") >= inicio_mes_iso
+    ]
+
+    todas_notas_mes = notas_mes + notas_sem_data_mes
+
+    # IDs dos pedidos faturados no mes
+    pedidos_ids_faturados_mes = {n.get("pedido_id") for n in todas_notas_mes}
+
+    tonelagem_faturada = 0.0
+    faturado_mes_valor = 0.0
+    comissao_realizada = 0.0
+
+    for p in todos_pedidos:
+        pid = str(p.get("_id", p.get("id", "")))
+        if pid in pedidos_ids_faturados_mes or p.get("id") in pedidos_ids_faturados_mes:
+            tonelagem_faturada += p.get("peso_total", 0)
+            faturado_mes_valor += p.get("valor_total", 0)
+            for item in p.get("itens", []):
+                comissao_realizada += item.get("comissao_valor", 0)
+
+    # Fallback: soma direto das notas se pedidos nao tem itens
+    if comissao_realizada == 0:
+        comissao_realizada = sum(n.get("comissao_total", 0) for n in todas_notas_mes)
+
+    tonelagem_faturada = tonelagem_faturada / 1000
+
+    # Comissao prevista — pedidos implantados no mes
     comissao_prevista = round(sum(
         item.get("comissao_valor", 0)
         for p in pedidos_mes for item in p.get("itens", [])
     ), 2)
-    comissao_realizada = round(sum(
-        item.get("comissao_valor", 0)
-        for p in pedidos_mes if p.get("status") == "NF_EMITIDA"
-        for item in p.get("itens", [])
-    ), 2)
+
+    comissao_realizada = round(comissao_realizada, 2)
     comissao_mes = comissao_realizada
     comissoes_a_receber = round(comissao_prevista - comissao_realizada, 2)
 
+    # Valor pedidos do mes (implantados)
+    pedidos_mes_valor = sum(p.get("valor_total", 0) for p in pedidos_mes)
+
     return {
-        # Campos esperados pelo Dashboard frontend
         "tonelagem_implantada": round(tonelagem_implantada, 3),
         "comissao_prevista": comissao_prevista,
         "tonelagem_faturada": round(tonelagem_faturada, 3),
@@ -539,7 +571,6 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
         "faturado_mes_valor": round(faturado_mes_valor, 2),
         "comissao_mes": comissao_mes,
         "comissoes_a_receber": comissoes_a_receber,
-        # Campos extras
         "total_clientes": total_clientes,
         "total_materiais": total_materiais,
         "total_pedidos": len(todos_pedidos),

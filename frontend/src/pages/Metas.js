@@ -127,11 +127,8 @@ const Metas = () => {
     );
     const pedidosIds = new Set(pedidosCliente.map(p => p.id));
 
-    // Cruza NFs do mes com os pedidos encontrados OU pelo nome do cliente na NF
-    const notasCliente = notasMes.filter(n =>
-      pedidosIds.has(n.pedido_id) ||
-      (clienteNomePart && n.cliente_nome?.toLowerCase().includes(clienteNomePart))
-    );
+    // Cruza APENAS pelos pedido_id — evita duplicar por nome
+    const notasCliente = notasMes.filter(n => pedidosIds.has(n.pedido_id));
 
     let realizadoKg = 0;
     for (const nota of notasCliente) {

@@ -23,6 +23,8 @@ const Metas = () => {
   const { isAdmin } = useAuth();
   const [clientes, setClientes] = useState([]);
   const [metas, setMetas] = useState([]);
+  const [pedidos, setPedidos] = useState([]);
+  const [notas, setNotas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString());
@@ -35,12 +37,16 @@ const Metas = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [cliRes, metaRes] = await Promise.all([
+      const [cliRes, metaRes, pedRes, nfRes] = await Promise.all([
         api.get('/clientes'),
         api.get('/metas'),
+        api.get('/pedidos'),
+        api.get('/notas-fiscais'),
       ]);
       setClientes(Array.isArray(cliRes.data) ? cliRes.data : []);
       setMetas(Array.isArray(metaRes.data) ? metaRes.data : []);
+      setPedidos(Array.isArray(pedRes.data) ? pedRes.data : []);
+      setNotas(Array.isArray(nfRes.data) ? nfRes.data : []);
     } catch { toast.error('Erro ao sincronizar dados de performance'); }
     finally { setLoading(false); }
   };
@@ -90,12 +96,33 @@ const Metas = () => {
     setEditingMeta(null);
   };
 
-  // Calcula progresso de um cliente no mês selecionado
-  // Realizado zerado até módulo de NF ser construído
+  // Retorna NFs do mês/ano selecionado usando data_emissao (competência real)
+  const getNotasDoMes = (mes) => {
+    const mesNum = parseInt(mes);
+    return notas.filter(n => {
+      const dataRef = n.data_emissao || n.criado_em?.substring(0, 10);
+      if (!dataRef) return false;
+      const d = new Date(dataRef + 'T00:00:00');
+      return d.getMonth() + 1 === mesNum && d.getFullYear() === 2026;
+    });
+  };
+
+  // Calcula realizado de um cliente no mês — cruza NFs do mês com pedidos do cliente
   const getProgresso = (clienteId) => {
     const meta = metas.find(m => m.cliente_id === clienteId && m.mes === selectedMonth);
     const metaTon = meta ? parseFloat(meta.valor_ton || 0) : 0;
-    const realizado = 0; // 🔜 será preenchido com dados de NF quando o módulo estiver pronto
+
+    const notasMes = getNotasDoMes(selectedMonth);
+    const pedidosCliente = pedidos.filter(p => p.cliente_id === clienteId && p.status === 'NF_EMITIDA');
+    const pedidosIds = new Set(pedidosCliente.map(p => p.id));
+    const notasCliente = notasMes.filter(n => pedidosIds.has(n.pedido_id));
+
+    let realizadoKg = 0;
+    for (const nota of notasCliente) {
+      const pedido = pedidosCliente.find(p => p.id === nota.pedido_id);
+      if (pedido) realizadoKg += pedido.peso_total || 0;
+    }
+    const realizado = realizadoKg / 1000;
     const pct = metaTon > 0 ? (realizado / metaTon) * 100 : 0;
     return { meta: metaTon, realizado, pct, metaId: meta?.id };
   };
@@ -104,9 +131,8 @@ const Metas = () => {
     !searchTerm || c.nome?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Totais do mês
   const totalMeta = clientesFiltrados.reduce((a, c) => a + getProgresso(c.id).meta, 0);
-  const totalRealizado = 0; // 🔜 idem
+  const totalRealizado = clientesFiltrados.reduce((a, c) => a + getProgresso(c.id).realizado, 0);
   const pctGeral = totalMeta > 0 ? (totalRealizado / totalMeta) * 100 : 0;
   const clientesComMeta = clientes.filter(c => getProgresso(c.id).meta > 0).length;
 
@@ -179,17 +205,16 @@ const Metas = () => {
       {/* TOTALIZADORES */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
-          { label: 'Meta Global', value: `${fmt(totalMeta)} TON`, icon: Target, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-          { label: 'Realizado', value: `${fmt(totalRealizado, 3)} TON`, icon: TrendingUp, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', note: '🔜 aguarda NF' },
-          { label: 'Clientes com Meta', value: clientesComMeta, icon: Users, color: 'text-slate-700', bg: 'bg-white border-slate-200' },
-          { label: 'Atingimento Geral', value: `${fmt(pctGeral)}%`, icon: Weight, color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', note: '🔜 aguarda NF' },
+          { label: 'Meta Global',       value: `${fmt(totalMeta)} TON`,        icon: Target,     color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200' },
+          { label: 'Realizado',         value: `${fmt(totalRealizado, 3)} TON`, icon: TrendingUp, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+          { label: 'Clientes com Meta', value: clientesComMeta,                 icon: Users,      color: 'text-slate-700',   bg: 'bg-white border-slate-200' },
+          { label: 'Atingimento Geral', value: `${fmt(pctGeral)}%`,             icon: Weight,     color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200' },
         ].map((item, i) => (
           <div key={i} className={`flex items-center gap-3 p-3 border ${item.bg}`}>
             <item.icon size={18} className={item.color} />
             <div>
               <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">{item.label}</p>
               <p className={`text-sm font-black ${item.color} font-mono`}>{item.value}</p>
-              {item.note && <p className="text-[8px] text-slate-400 font-bold mt-0.5">{item.note}</p>}
             </div>
           </div>
         ))}

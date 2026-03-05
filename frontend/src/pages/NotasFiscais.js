@@ -21,6 +21,7 @@ const sapLabel = "text-[9px] font-black uppercase tracking-wider text-slate-500 
 
 const FORM_INITIAL = {
   numero_nf: '',
+  data_emissao: '',        // ← NOVO: data real de emissão da NF
   pedido_id: '',
   valor_total: '',
   numero_parcelas: '1',
@@ -86,6 +87,7 @@ const NotasFiscais = () => {
     try {
       const payload = {
         numero_nf: formData.numero_nf,
+        data_emissao: formData.data_emissao,   // ← NOVO: envia data real para o backend
         pedido_id: formData.pedido_id,
         valor_total: parseFloat(String(formData.valor_total).replace(/\./g, '').replace(',', '.')) || 0,
         numero_parcelas: parseInt(formData.numero_parcelas),
@@ -251,7 +253,11 @@ const NotasFiscais = () => {
                     >
                       <td className="px-4 py-2.5 border-r border-slate-100">
                         <p className="font-black text-blue-800 font-mono">NF {nota.numero_nf}</p>
-                        <p className="text-[9px] text-slate-400 font-bold mt-0.5">{fmtDate(nota.criado_em?.substring(0,10))}</p>
+                        {/* PATCH: exibe data_emissao real; fallback para criado_em */}
+                        <p className="text-[9px] text-slate-400 font-bold mt-0.5">
+                          {fmtDate(nota.data_emissao || nota.criado_em?.substring(0, 10))}
+                          {nota.data_emissao && <span className="ml-1 text-blue-400 text-[8px]">✓ emissão</span>}
+                        </p>
                       </td>
                       <td className="px-4 py-2.5 border-r border-slate-100">
                         <p className="font-black text-slate-700">{nota.numero_fabrica || '— aguardando —'}</p>
@@ -412,6 +418,16 @@ const NotasFiscais = () => {
                     value={formData.numero_nf}
                     onChange={e => setFormData({ ...formData, numero_nf: e.target.value })}
                     required className={sapInput} placeholder="000.000"
+                  />
+                </div>
+                {/* PATCH: campo data de emissão real */}
+                <div>
+                  <label className={`${sapLabel} text-blue-700`}>Data de Emissão da NF *</label>
+                  <Input
+                    type="date"
+                    value={formData.data_emissao}
+                    onChange={e => setFormData({ ...formData, data_emissao: e.target.value })}
+                    required className={sapInput}
                   />
                 </div>
                 <div>

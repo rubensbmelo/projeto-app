@@ -58,6 +58,8 @@ const NotasFiscais = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedNota, setExpandedNota] = useState(null);
   const [formData, setFormData] = useState(FORM_INITIAL);
+  const [editandoData, setEditandoData] = useState(null);
+  const [novaData, setNovaData] = useState('');
 
   const pedidoSelecionado = pedidos.find(p => p.id === formData.pedido_id);
   const qtdePedida = pedidoSelecionado?.quantidade || 0;
@@ -125,6 +127,17 @@ const NotasFiscais = () => {
   };
 
   const resetForm = () => { setFormData(FORM_INITIAL); };
+
+  const handleEditarData = async (notaId) => {
+    if (!novaData) return toast.error('Informe a data de emissão');
+    try {
+      await api.put(`/notas-fiscais/${notaId}`, { data_emissao: novaData });
+      toast.success('Data de emissão atualizada!');
+      setEditandoData(null);
+      setNovaData('');
+      fetchData();
+    } catch { toast.error('Erro ao atualizar data'); }
+  };
 
   const getVencimentosDaNota = (notaId) =>
     vencimentos.filter(v => v.nota_fiscal_id === notaId);
@@ -253,11 +266,32 @@ const NotasFiscais = () => {
                     >
                       <td className="px-4 py-2.5 border-r border-slate-100">
                         <p className="font-black text-blue-800 font-mono">NF {nota.numero_nf}</p>
-                        {/* PATCH: exibe data_emissao real; fallback para criado_em */}
-                        <p className="text-[9px] text-slate-400 font-bold mt-0.5">
-                          {fmtDate(nota.data_emissao || nota.criado_em?.substring(0, 10))}
-                          {nota.data_emissao && <span className="ml-1 text-blue-400 text-[8px]">✓ emissão</span>}
-                        </p>
+                        {/* Inline edit data emissão */}
+                        {editandoData === nota.id ? (
+                          <div className="flex items-center gap-1 mt-1" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="date"
+                              value={novaData}
+                              onChange={e => setNovaData(e.target.value)}
+                              className="text-[9px] border border-blue-400 px-1 h-6 bg-white outline-none font-bold"
+                              autoFocus
+                            />
+                            <button onClick={() => handleEditarData(nota.id)} className="text-[8px] font-black text-white bg-blue-600 hover:bg-blue-700 px-1.5 h-6">✓</button>
+                            <button onClick={() => { setEditandoData(null); setNovaData(''); }} className="text-[8px] font-black text-slate-500 hover:text-red-500 px-1 h-6">✕</button>
+                          </div>
+                        ) : (
+                          <p
+                            className="text-[9px] text-slate-400 font-bold mt-0.5 cursor-pointer hover:text-blue-500 group flex items-center gap-1"
+                            onClick={e => { e.stopPropagation(); setEditandoData(nota.id); setNovaData(nota.data_emissao || ''); }}
+                            title="Clique para editar a data de emissão"
+                          >
+                            {fmtDate(nota.data_emissao || nota.criado_em?.substring(0, 10))}
+                            {nota.data_emissao
+                              ? <span className="text-blue-400 text-[8px]">✓</span>
+                              : <span className="text-amber-400 text-[8px] opacity-0 group-hover:opacity-100">✎</span>
+                            }
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 border-r border-slate-100">
                         <p className="font-black text-slate-700">{nota.numero_fabrica || '— aguardando —'}</p>

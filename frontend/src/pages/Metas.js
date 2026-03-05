@@ -112,10 +112,26 @@ const Metas = () => {
     const meta = metas.find(m => m.cliente_id === clienteId && m.mes === selectedMonth);
     const metaTon = meta ? parseFloat(meta.valor_ton || 0) : 0;
 
+    // Nome do cliente para fallback (pedidos importados podem nao ter cliente_id)
+    const cliente = clientes.find(c => c.id === clienteId);
+    const clienteNomePart = cliente?.nome?.toLowerCase().split(' ')[0] || '';
+
     const notasMes = getNotasDoMes(selectedMonth);
-    const pedidosCliente = pedidos.filter(p => p.cliente_id === clienteId && p.status === 'NF_EMITIDA');
+
+    // Filtra pedidos pelo cliente_id OU pelo nome (fallback para pedidos importados sem cliente_id)
+    const pedidosCliente = pedidos.filter(p =>
+      p.status === 'NF_EMITIDA' && (
+        p.cliente_id === clienteId ||
+        (!p.cliente_id && clienteNomePart && p.cliente_nome?.toLowerCase().includes(clienteNomePart))
+      )
+    );
     const pedidosIds = new Set(pedidosCliente.map(p => p.id));
-    const notasCliente = notasMes.filter(n => pedidosIds.has(n.pedido_id));
+
+    // Cruza NFs do mes com os pedidos encontrados OU pelo nome do cliente na NF
+    const notasCliente = notasMes.filter(n =>
+      pedidosIds.has(n.pedido_id) ||
+      (clienteNomePart && n.cliente_nome?.toLowerCase().includes(clienteNomePart))
+    );
 
     let realizadoKg = 0;
     for (const nota of notasCliente) {

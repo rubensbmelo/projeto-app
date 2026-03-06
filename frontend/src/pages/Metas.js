@@ -118,21 +118,16 @@ const Metas = () => {
 
     const notasMes = getNotasDoMes(selectedMonth);
 
-    // Filtra pedidos pelo cliente_id OU pelo nome (fallback para pedidos importados sem cliente_id)
-    const pedidosCliente = pedidos.filter(p =>
-      p.status === 'NF_EMITIDA' && (
-        p.cliente_id === clienteId ||
-        (!p.cliente_id && clienteNomePart && p.cliente_nome?.toLowerCase().includes(clienteNomePart))
-      )
+    // Filtra NFs do mes pelo cliente_id OU pelo nome (fallback para pedidos importados)
+    const notasCliente = notasMes.filter(n =>
+      n.cliente_id === clienteId ||
+      (!n.cliente_id && clienteNomePart && n.cliente_nome?.toLowerCase().includes(clienteNomePart))
     );
-    const pedidosIds = new Set(pedidosCliente.map(p => p.id));
 
-    // Cruza APENAS pelos pedido_id — evita duplicar por nome
-    const notasCliente = notasMes.filter(n => pedidosIds.has(n.pedido_id));
-
+    // Soma peso_total dos pedidos vinculados às NFs do mês
     let realizadoKg = 0;
     for (const nota of notasCliente) {
-      const pedido = pedidosCliente.find(p => p.id === nota.pedido_id);
+      const pedido = pedidos.find(p => p.id === nota.pedido_id);
       if (pedido) realizadoKg += pedido.peso_total || 0;
     }
     const realizado = realizadoKg / 1000;

@@ -509,7 +509,13 @@ const Pedidos = () => {
         registrado_em: new Date().toISOString(),
       };
 
-      const pesoUnit = qtdePedida > 0 ? toNum(entregaPedido.peso_total) / qtdePedida : 0;
+      // Busca peso_unit real do material; fallback: divide peso_total pela qtde
+      const materialPedido = materiais.find(m =>
+        m.numero_fe?.toUpperCase() === entregaPedido.numero_fe?.toUpperCase()
+      );
+      const pesoUnit = materialPedido
+        ? toNum(materialPedido.peso_unit)
+        : qtdePedida > 0 ? toNum(entregaPedido.peso_total) / qtdePedida : 0;
       const precoMilheiro = toNum(entregaPedido.itens?.[0]?.valor_unitario || 0);
       const comissaoPercent = toNum(entregaPedido.itens?.[0]?.comissao_percent || 0);
       const novoValorTotal = (qtdeEntregue / 1000) * precoMilheiro;

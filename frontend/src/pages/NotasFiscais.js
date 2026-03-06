@@ -53,6 +53,7 @@ const NotasFiscais = () => {
   const [notas, setNotas] = useState([]);
   const [vencimentos, setVencimentos] = useState([]);
   const [pedidos, setPedidos] = useState([]);
+  const [materiais, setMateriais] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,14 +72,16 @@ const NotasFiscais = () => {
 
   const fetchData = async () => {
     try {
-      const [notasRes, vencRes, pedidosRes] = await Promise.all([
+      const [notasRes, vencRes, pedidosRes, matsRes] = await Promise.all([
         api.get('/notas-fiscais'),
         api.get('/vencimentos'),
         api.get('/pedidos'),
+        api.get('/materiais'),
       ]);
       setNotas(notasRes.data || []);
       setVencimentos(vencRes.data || []);
       setPedidos(pedidosRes.data || []);
+      setMateriais(matsRes.data || []);
     } catch { toast.error('Erro ao carregar dados financeiros'); }
     finally { setLoading(false); }
   };
@@ -98,6 +101,80 @@ const NotasFiscais = () => {
         motivo_entrega: formData.motivo_entrega || null,
       };
       await api.post('/notas-fiscais', payload);
+
+      // Atualiza pedido com qtde entregue e peso recalculado
+      if (formData.qtde_entregue && pedidoSelecionado) {
+        const qtdeEntregue = parseInt(formData.qtde_entregue);
+        const qtdePedida = pedidoSelecionado.quantidade || 0;
+        // Busca peso_unit do material pelo numero_fe
+        const mat = materiais.find(m =>
+          m.numero_fe?.toUpperCase() === pedidoSelecionado.numero_fe?.toUpperCase()
+        );
+        const pesoUnit = mat
+          ? parseFloat(mat.peso_unit || 0)
+          : qtdePedida > 0 ? (pedidoSelecionado.peso_total || 0) / qtdePedida : 0;
+        const precoMilheiro = pedidoSelecionado.itens?.[0]?.valor_unitario || 0;
+        const comissaoPercent = pedidoSelecionado.itens?.[0]?.comissao_percent || 0;
+        const novoPesoTotal = qtdeEntregue * pesoUnit;
+        const novoValorTotal = (qtdeEntregue / 1000) * precoMilheiro;
+        const novaComissao = novoValorTotal * comissaoPercent / 100;
+        const variacao = qtdePedida > 0 ? ((qtdeEntregue - qtdePedida) / qtdePedida * 100).toFixed(1) : 0;
+
+        await api.put(`/pedidos/${pedidoSelecionado.id}`, {
+          ...pedidoSelecionado,
+          quantidade: qtdeEntregue,
+          peso_total: novoPesoTotal,
+          valor_total: novoValorTotal > 0 ? novoValorTotal : pedidoSelecionado.valor_total,
+          comissao_valor: novaComissao > 0 ? novaComissao : pedidoSelecionado.comissao_valor,
+          status: 'NF_EMITIDA',
+          historico_entrega: {
+            qtde_pedida: qtdePedida,
+            qtde_entregue: qtdeEntregue,
+            variacao_percent: variacao,
+            motivo: formData.motivo_entrega || 'cliente_aceitou',
+            registrado_em: new Date().toISOString(),
+          },
+          itens: pedidoSelecionado.itens?.map((item, i) => i === 0 ? {
+            ...item,
+            quantidade: qtdeEntregue,
+            peso_calculado: novoPesoTotal,
+            subtotal: novoValorTotal > 0 ? novoValorTotal : item.subtotal,
+            comissao_valor: novaComissao > 0 ? novaComissao : item.comissao_valor,
+          } : item) || [],
+        });
+
+        // Cria pedido saldo se entrega parcial
+        if (formData.motivo_entrega === 'entrega_parcial') {
+          const saldo = qtdePedida - qtdeEntregue;
+          if (saldo > 0) {
+            const numMae = pedidoSelecionado.numero_fabrica || '';
+            const pesoSaldo = saldo * pesoUnit;
+            const valorSaldo = (saldo / 1000) * precoMilheiro;
+            const comissaoSaldo = valorSaldo * comissaoPercent / 100;
+            await api.post('/pedidos', {
+              cliente_nome: pedidoSelecionado.cliente_nome,
+              item_nome: pedidoSelecionado.item_nome,
+              numero_fabrica: `${numMae}-S1`,
+              numero_fe: pedidoSelecionado.numero_fe,
+              numero_oc: pedidoSelecionado.numero_oc,
+              data_entrega: pedidoSelecionado.data_entrega,
+              quantidade: saldo,
+              peso_total: pesoSaldo,
+              valor_total: valorSaldo,
+              comissao_valor: comissaoSaldo,
+              status: 'IMPLANTADO',
+              pedido_mae: pedidoSelecionado.numero_fabrica,
+              observacoes: `Saldo do pedido ${pedidoSelecionado.numero_fabrica}`,
+              itens: pedidoSelecionado.itens?.map((item, i) => i === 0 ? {
+                ...item, quantidade: saldo, peso_calculado: pesoSaldo,
+                subtotal: valorSaldo, comissao_valor: comissaoSaldo,
+              } : item) || [],
+            });
+            toast.success(`Pedido saldo criado com ${saldo.toLocaleString('pt-BR')} unidades!`);
+          }
+        }
+      }
+
       toast.success('NF lançada e vencimentos gerados!');
       setDialogOpen(false);
       resetForm();

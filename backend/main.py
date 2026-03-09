@@ -528,16 +528,18 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
 
     todas_notas_mes = notas_mes + notas_sem_data_mes
 
-    # IDs dos pedidos faturados no mes
-    pedidos_ids_faturados_mes = {n.get("pedido_id") for n in todas_notas_mes}
+    # IDs dos pedidos faturados no mes — garante que sao strings
+    pedidos_ids_faturados_mes = {str(n.get("pedido_id", "")) for n in todas_notas_mes if n.get("pedido_id")}
 
     tonelagem_faturada = 0.0
     faturado_mes_valor = 0.0
     comissao_realizada = 0.0
 
     for p in todos_pedidos:
-        pid = str(p.get("_id", p.get("id", "")))
-        if pid in pedidos_ids_faturados_mes or p.get("id") in pedidos_ids_faturados_mes:
+        # Compara tanto pelo _id (ObjectId convertido) quanto pelo campo id
+        pid_obj = str(p.get("_id", ""))
+        pid_str = str(p.get("id", ""))
+        if pid_obj in pedidos_ids_faturados_mes or pid_str in pedidos_ids_faturados_mes:
             tonelagem_faturada += p.get("peso_total", 0)
             faturado_mes_valor += p.get("valor_total", 0)
             for item in p.get("itens", []):

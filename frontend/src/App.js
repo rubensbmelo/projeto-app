@@ -11,6 +11,7 @@ import NotasFiscais from './pages/NotasFiscais';
 import Comissoes from './pages/Comissoes';
 import Metas from './pages/Metas'; 
 import Usuarios from './pages/Usuarios';
+import Orcamentos from './pages/Orcamentos';
 import Layout from './components/Layout';
 import './App.css';
 
@@ -37,7 +38,6 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 function App() {
   return (
     <AuthProvider>
-      {/* Removido o basename para funcionar na Vercel */}
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -48,6 +48,7 @@ function App() {
           <Route path="/materiais" element={<ProtectedRoute><Materiais /></ProtectedRoute>} />
           <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
           <Route path="/comissoes" element={<ProtectedRoute><Comissoes /></ProtectedRoute>} />
+          <Route path="/orcamentos" element={<ProtectedRoute><Orcamentos /></ProtectedRoute>} />
           
           {/* Rotas Restritas (Apenas Admin pode ver Metas e Notas Fiscais) */}
           <Route path="/notas-fiscais" element={

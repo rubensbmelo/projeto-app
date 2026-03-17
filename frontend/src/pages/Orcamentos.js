@@ -415,8 +415,7 @@ Representante Conpel
           <table className="w-full text-xs min-w-[700px]">
             <thead>
               <tr className="bg-stone-800 text-white">
-                {["Nº","FE","Descrição","Medidas","Unid.","Qtd.
-Mín.","Preço/Milh.","Subtotal",""].map((h,i) => (
+                {["Nº","FE","Descrição","Medidas","Unid.","Qtd.\nMín.","Preço/Milh.","Subtotal",""].map((h,i) => (
                   <th key={i} className="px-2 py-2.5 text-center font-bold tracking-wide" style={{fontSize:9, textTransform:"uppercase", whiteSpace:"pre"}}>{h}</th>
                 ))}
               </tr>

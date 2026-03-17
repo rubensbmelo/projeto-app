@@ -100,6 +100,10 @@ async def startup():
     await db.pedidos.create_index("numero_oc")
     await db.pedidos.create_index("cliente_id")
     await db.pedidos.create_index("status")
+    # Índices orçamentos
+    await db.orcamentos.create_index("numero_proposta")
+    await db.orcamentos.create_index("cliente_id")
+    await db.orcamentos.create_index("status")
 
     # Cria admin padrão se não existir
     admin_email = os.getenv("ADMIN_EMAIL", "rubensbmelo@hotmail.com")
@@ -132,7 +136,7 @@ class UsuarioCreateSchema(BaseModel):
     nome: str
     email: EmailStr
     password: str
-    role: Optional[str] = "vendedor"  # admin | vendedor | visualizador
+    role: Optional[str] = "vendedor"
 
 
 class UsuarioUpdateSenhaSchema(BaseModel):
@@ -169,8 +173,8 @@ class ItemPedido(BaseModel):
     valor_unitario: Optional[float] = 0.0
     subtotal: Optional[float] = 0.0
     ipi: Optional[float] = 0.0
-    comissao_percent: Optional[float] = 0.0  # Ex: 1.5, 2.0, 3.0
-    comissao_valor: Optional[float] = 0.0    # Calculado: subtotal * comissao_percent / 100
+    comissao_percent: Optional[float] = 0.0
+    comissao_valor: Optional[float] = 0.0
 
 
 class PedidoSchema(BaseModel):
@@ -321,7 +325,6 @@ async def resetar_senha(usuario_id: str, data: dict, admin=Depends(apenas_admin)
 
 @app.delete("/api/usuarios/{usuario_id}")
 async def deletar_usuario(usuario_id: str, admin=Depends(apenas_admin)):
-    # Não permite deletar a si mesmo
     doc = await db.usuarios.find_one({"id": usuario_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -461,7 +464,6 @@ async def atualizar_pedido(pedido_id: str, pedido: PedidoSchema, usuario=Depends
     pedido_atual = await db.pedidos.find_one({"_id": to_object_id(pedido_id)})
     if not pedido_atual:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
-    # Trava contábil — bloqueia edição se NF emitida e não for admin
     if pedido_atual.get("status") == "NF_EMITIDA" and usuario.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Pedido com NF emitida não pode ser editado")
     doc = pedido.dict()
@@ -486,12 +488,11 @@ async def deletar_pedido(pedido_id: str, admin=Depends(apenas_admin)):
 @app.get("/api/dashboard/stats")
 async def get_dashboard_stats(usuario=Depends(verificar_token)):
     now = datetime.now(timezone.utc)
-    inicio_mes = now.replace(day=1).strftime("%Y-%m-%d")   # ex: "2026-03-01"
-    fim_mes = now.strftime("%Y-%m-%d")                      # hoje
+    inicio_mes = now.replace(day=1).strftime("%Y-%m-%d")
+    fim_mes = now.strftime("%Y-%m-%d")
 
     todos_pedidos = await db.pedidos.find().to_list(length=1000)
 
-    # Pedidos implantados/pendentes criados no mes (carteira ativa)
     inicio_mes_iso = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
     pedidos_mes = [p for p in todos_pedidos if p.get("criado_em", "") >= inicio_mes_iso]
 
@@ -503,32 +504,19 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
         s = p.get("status", "PENDENTE")
         pedidos_por_status[s] = pedidos_por_status.get(s, 0) + 1
 
-    # Tonelagem implantada — pedidos do mes ainda nao faturados
     tonelagem_implantada = sum(
         p.get("peso_total", 0) for p in pedidos_mes
         if p.get("status") in ("IMPLANTADO", "PENDENTE")
     ) / 1000
 
-    # -------------------------------------------------------
-    # FATURADO — filtra pelas NFs com data_emissao no mes atual
-    # Usa data_emissao (competência real) em vez de criado_em do pedido
-    # -------------------------------------------------------
     notas_mes = await db.notas_fiscais.find({
         "data_emissao": {"$gte": inicio_mes, "$lte": fim_mes}
     }).to_list(length=1000)
 
-    # Para NFs sem data_emissao ainda, usa criado_em como fallback
-    notas_sem_data = await db.notas_fiscais.find({
-        "data_emissao": None
-    }).to_list(length=1000)
-    notas_sem_data_mes = [
-        n for n in notas_sem_data
-        if n.get("criado_em", "") >= inicio_mes_iso
-    ]
-
+    notas_sem_data = await db.notas_fiscais.find({"data_emissao": None}).to_list(length=1000)
+    notas_sem_data_mes = [n for n in notas_sem_data if n.get("criado_em", "") >= inicio_mes_iso]
     todas_notas_mes = notas_mes + notas_sem_data_mes
 
-    # IDs dos pedidos faturados no mes — garante que sao strings
     pedidos_ids_faturados_mes = {str(n.get("pedido_id", "")) for n in todas_notas_mes if n.get("pedido_id")}
 
     tonelagem_faturada = 0.0
@@ -536,7 +524,6 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
     comissao_realizada = 0.0
 
     for p in todos_pedidos:
-        # Compara tanto pelo _id (ObjectId convertido) quanto pelo campo id
         pid_obj = str(p.get("_id", ""))
         pid_str = str(p.get("id", ""))
         if pid_obj in pedidos_ids_faturados_mes or pid_str in pedidos_ids_faturados_mes:
@@ -545,13 +532,11 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
             for item in p.get("itens", []):
                 comissao_realizada += item.get("comissao_valor", 0)
 
-    # Fallback: soma direto das notas se pedidos nao tem itens
     if comissao_realizada == 0:
         comissao_realizada = sum(n.get("comissao_total", 0) for n in todas_notas_mes)
 
     tonelagem_faturada = tonelagem_faturada / 1000
 
-    # Comissao prevista — pedidos implantados no mes
     comissao_prevista = round(sum(
         item.get("comissao_valor", 0)
         for p in pedidos_mes for item in p.get("itens", [])
@@ -560,8 +545,6 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
     comissao_realizada = round(comissao_realizada, 2)
     comissao_mes = comissao_realizada
     comissoes_a_receber = round(comissao_prevista - comissao_realizada, 2)
-
-    # Valor pedidos do mes (implantados)
     pedidos_mes_valor = sum(p.get("valor_total", 0) for p in pedidos_mes)
 
     return {
@@ -587,7 +570,7 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
 
 class MetaSchema(BaseModel):
     cliente_id: str
-    mes: str        # "1" a "12"
+    mes: str
     ano: int = 2026
     valor_ton: float = 0.0
 
@@ -598,14 +581,8 @@ async def listar_metas(usuario=Depends(verificar_token)):
 
 @app.post("/api/metas", status_code=201)
 async def criar_meta(meta: MetaSchema, usuario=Depends(apenas_admin)):
-    # Verifica se já existe meta para esse cliente/mês/ano
-    existente = await db.metas.find_one({
-        "cliente_id": meta.cliente_id,
-        "mes": meta.mes,
-        "ano": meta.ano
-    })
+    existente = await db.metas.find_one({"cliente_id": meta.cliente_id, "mes": meta.mes, "ano": meta.ano})
     if existente:
-        # Atualiza ao invés de duplicar
         await db.metas.update_one(
             {"_id": existente["_id"]},
             {"$set": {"valor_ton": meta.valor_ton, "atualizado_em": datetime.now(timezone.utc).isoformat()}}
@@ -636,7 +613,7 @@ async def deletar_meta(meta_id: str, usuario=Depends(apenas_admin)):
 
 
 # ============================================================
-# 14. Health Check
+# 15. Health Check
 # ============================================================
 
 @app.get("/")
@@ -654,12 +631,12 @@ async def api_health():
 
 
 # ============================================================
-# 15. Notas Fiscais & Vencimentos
+# 16. Notas Fiscais & Vencimentos
 # ============================================================
 
 class NotaFiscalSchema(BaseModel):
     numero_nf: str
-    data_emissao: Optional[str] = None   # data real de emissão da NF (competência)
+    data_emissao: Optional[str] = None
     pedido_id: str
     valor_total: float
     numero_parcelas: int = 1
@@ -678,7 +655,6 @@ async def listar_notas(usuario=Depends(verificar_token)):
 
 @app.post("/api/notas-fiscais", status_code=201)
 async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
-    # 1. Busca o pedido para pegar comissao_percent e outros dados
     try:
         pedido = await db.pedidos.find_one({"_id": to_object_id(nota.pedido_id)})
     except:
@@ -686,16 +662,13 @@ async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
 
-    # 2. Calcula comissão total da NF
-    # Busca o % de comissão direto do material pelo numero_fe
     comissao_percent = 0.0
     numero_fe = pedido.get("numero_fe", "")
     if numero_fe:
         material = await db.materiais.find_one({"numero_fe": numero_fe})
         if material:
             comissao_percent = float(material.get("comissao", 0) or 0)
-    
-    # Fallback: tenta pegar do item do pedido
+
     if comissao_percent <= 0:
         itens = pedido.get("itens", [])
         if itens:
@@ -704,11 +677,10 @@ async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
     comissao_total = nota.valor_total * comissao_percent / 100
     comissao_por_parcela = round(comissao_total / nota.numero_parcelas, 2)
 
-    # 3. Cria a nota fiscal
     now = datetime.now(timezone.utc).isoformat()
     nota_doc = {
         "numero_nf": nota.numero_nf,
-        "data_emissao": nota.data_emissao,   # data real da NF para filtros por competência
+        "data_emissao": nota.data_emissao,
         "pedido_id": nota.pedido_id,
         "cliente_nome": pedido.get("cliente_nome", ""),
         "cliente_id": pedido.get("cliente_id", ""),
@@ -727,10 +699,8 @@ async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
     result = await db.notas_fiscais.insert_one(nota_doc)
     nota_id = str(result.inserted_id)
 
-    # 4. Gera vencimentos automaticamente
     hoje = datetime.now(timezone.utc).date()
     for i in range(nota.numero_parcelas):
-        # Data manual ou hoje + 30*i dias como fallback
         if i < len(nota.datas_manuais) and nota.datas_manuais[i]:
             data_venc_str = nota.datas_manuais[i]
             data_venc = datetime.strptime(data_venc_str, "%Y-%m-%d").date()
@@ -739,7 +709,6 @@ async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
             data_venc_str = data_venc.isoformat()
 
         status_venc = "Pago" if data_venc < hoje else "Pendente"
-
         venc_doc = {
             "nota_fiscal_id": nota_id,
             "pedido_id": nota.pedido_id,
@@ -756,12 +725,10 @@ async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
         }
         await db.vencimentos.insert_one(venc_doc)
 
-    # 5. Atualiza status do pedido para NF_EMITIDA
     await db.pedidos.update_one(
         {"_id": to_object_id(nota.pedido_id)},
         {"$set": {"status": "NF_EMITIDA", "nota_fiscal_id": nota_id}}
     )
-
     return {"message": "NF criada e vencimentos gerados!", "nota_id": nota_id, "vencimentos_gerados": nota.numero_parcelas}
 
 class NotaFiscalUpdateSchema(BaseModel):
@@ -783,7 +750,6 @@ async def atualizar_nota(nota_id: str, data: NotaFiscalUpdateSchema, usuario=Dep
 
 @app.delete("/api/notas-fiscais/{nota_id}")
 async def deletar_nota(nota_id: str, usuario=Depends(apenas_admin)):
-    # Remove vencimentos vinculados
     await db.vencimentos.delete_many({"nota_fiscal_id": nota_id})
     result = await db.notas_fiscais.delete_one({"_id": to_object_id(nota_id)})
     if result.deleted_count == 0:
@@ -792,7 +758,6 @@ async def deletar_nota(nota_id: str, usuario=Depends(apenas_admin)):
 
 @app.get("/api/vencimentos")
 async def listar_vencimentos(usuario=Depends(verificar_token)):
-    # Atualiza automaticamente status para Atrasado se passou da data
     hoje = datetime.now(timezone.utc).date().isoformat()
     await db.vencimentos.update_many(
         {"status": "Pendente", "data_vencimento": {"$lt": hoje}},
@@ -821,17 +786,14 @@ async def atualizar_vencimento(venc_id: str, data: VencimentoUpdateSchema, usuar
 
 @app.get("/api/export/comissoes")
 async def exportar_comissoes(usuario=Depends(apenas_admin)):
-    # Busca dados
     vencimentos = await db.vencimentos.find().sort("data_vencimento", 1).to_list(length=5000)
     notas = await db.notas_fiscais.find().to_list(length=5000)
     notas_map = {str(n["_id"]): n for n in notas}
 
-    # Cria workbook
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Comissões"
 
-    # Estilos
     header_fill = PatternFill("solid", fgColor="0A3D73")
     header_font = Font(bold=True, color="FFFFFF", size=9)
     header_align = Alignment(horizontal="center", vertical="center")
@@ -844,7 +806,6 @@ async def exportar_comissoes(usuario=Depends(apenas_admin)):
         bottom=Side(style="thin", color="CCCCCC"),
     )
 
-    # Cabeçalho
     headers = ["NF", "Cliente", "Parcela", "Total Parcelas", "Vencimento", "Valor Parcela (R$)", "Comissão (R$)", "Status", "Data Pagamento"]
     ws.append(headers)
     for col, _ in enumerate(headers, 1):
@@ -854,7 +815,6 @@ async def exportar_comissoes(usuario=Depends(apenas_admin)):
         cell.alignment = header_align
         cell.border = border
 
-    # Dados
     for v in vencimentos:
         nota = notas_map.get(str(v.get("nota_fiscal_id", "")), {})
         status_v = v.get("status", "Pendente")
@@ -882,14 +842,11 @@ async def exportar_comissoes(usuario=Depends(apenas_admin)):
             if col in [6, 7]:
                 cell.number_format = 'R$ #,##0.00'
 
-    # Largura das colunas
     col_widths = [12, 30, 9, 14, 14, 20, 16, 12, 16]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
-
     ws.row_dimensions[1].height = 20
 
-    # Totais por status
     ws.append([])
     ws.append(["", "", "", "", "TOTAL PAGO", "", sum(v.get("comissao_calculada", 0) for v in vencimentos if v.get("status") == "Pago")])
     ws.append(["", "", "", "", "TOTAL PENDENTE", "", sum(v.get("comissao_calculada", 0) for v in vencimentos if v.get("status") == "Pendente")])
@@ -900,7 +857,6 @@ async def exportar_comissoes(usuario=Depends(apenas_admin)):
         ws.cell(row=r, column=7).font = Font(bold=True, size=9)
         ws.cell(row=r, column=7).number_format = 'R$ #,##0.00'
 
-    # Retorna como stream
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
@@ -919,10 +875,6 @@ async def exportar_comissoes(usuario=Depends(apenas_admin)):
 
 @app.post("/api/admin/fix-cliente-ids")
 async def fix_cliente_ids(admin=Depends(apenas_admin)):
-    """
-    Percorre todos os pedidos sem cliente_id e tenta vincular
-    ao cliente correto comparando cliente_nome com a lista de clientes.
-    """
     clientes = await db.clientes.find().to_list(length=500)
     pedidos_sem_id = await db.pedidos.find({
         "$or": [
@@ -940,7 +892,6 @@ async def fix_cliente_ids(admin=Depends(apenas_admin)):
         if not nome_pedido:
             continue
 
-        # Tenta match exato primeiro, depois parcial
         cliente_match = None
         for c in clientes:
             nome_cli = (c.get("nome") or "").upper().strip()
@@ -951,7 +902,6 @@ async def fix_cliente_ids(admin=Depends(apenas_admin)):
         if not cliente_match:
             for c in clientes:
                 nome_cli = (c.get("nome") or "").upper().strip()
-                # Match parcial: primeiro token do nome do pedido dentro do nome do cliente ou vice-versa
                 partes_pedido = nome_pedido.split()
                 if partes_pedido and any(p in nome_cli for p in partes_pedido[:2]):
                     cliente_match = c
@@ -963,7 +913,6 @@ async def fix_cliente_ids(admin=Depends(apenas_admin)):
                 {"_id": pedido["_id"]},
                 {"$set": {"cliente_id": cliente_id}}
             )
-            # Atualiza tambem as NFs vinculadas a esse pedido
             pedido_id_str = str(pedido["_id"])
             await db.notas_fiscais.update_many(
                 {"pedido_id": pedido_id_str, "$or": [{"cliente_id": ""}, {"cliente_id": None}, {"cliente_id": {"$exists": False}}]},
@@ -981,7 +930,105 @@ async def fix_cliente_ids(admin=Depends(apenas_admin)):
 
 
 # ============================================================
-# 19. Shutdown
+# 20. Orçamentos
+# ============================================================
+
+class ItemOrcamento(BaseModel):
+    fe: Optional[str] = ""
+    descricao: Optional[str] = ""
+    medidas: Optional[str] = ""
+    unidade: Optional[str] = "Mil"
+    qtd_min: Optional[float] = 0.0
+    preco_milhar: Optional[float] = 0.0
+    subtotal: Optional[float] = 0.0
+
+class OrcamentoSchema(BaseModel):
+    numero_proposta: Optional[str] = ""
+    data_emissao: Optional[str] = ""
+    validade: Optional[str] = "20 DIAS"
+    # Cliente
+    cliente_id: Optional[str] = ""
+    cliente_nome: Optional[str] = ""
+    cliente_cnpj: Optional[str] = ""
+    cliente_endereco: Optional[str] = ""
+    cliente_contato: Optional[str] = ""
+    cliente_telefone: Optional[str] = ""
+    # Itens
+    itens: Optional[List[ItemOrcamento]] = []
+    # Condições
+    prazo_pagamento: Optional[str] = "60 dias"
+    frete: Optional[str] = "CIF"
+    prazo_entrega: Optional[str] = "15 dias após confirmação"
+    icms: Optional[str] = "20%"
+    ipi: Optional[float] = 15.0
+    # Totais
+    subtotal: Optional[float] = 0.0
+    valor_ipi: Optional[float] = 0.0
+    valor_total: Optional[float] = 0.0
+    # Status
+    status: Optional[str] = "PENDENTE"  # PENDENTE | ENVIADO | APROVADO | RECUSADO
+    observacoes: Optional[str] = ""
+
+def gerar_numero_proposta() -> str:
+    return f"PROP-{datetime.now().strftime('%d%m%Y-%H%M%S')}"
+
+@app.get("/api/orcamentos")
+async def listar_orcamentos(usuario=Depends(verificar_token)):
+    orcamentos = await db.orcamentos.find().sort("criado_em", -1).to_list(length=500)
+    return [serialize(o) for o in orcamentos]
+
+@app.get("/api/orcamentos/{orcamento_id}")
+async def buscar_orcamento(orcamento_id: str, usuario=Depends(verificar_token)):
+    orc = await db.orcamentos.find_one({"_id": to_object_id(orcamento_id)})
+    if not orc:
+        raise HTTPException(status_code=404, detail="Orçamento não encontrado")
+    return serialize(orc)
+
+@app.post("/api/orcamentos", status_code=201)
+async def criar_orcamento(orc: OrcamentoSchema, usuario=Depends(verificar_token)):
+    doc = orc.dict()
+    if not doc.get("numero_proposta"):
+        doc["numero_proposta"] = gerar_numero_proposta()
+    doc["criado_em"] = datetime.now(timezone.utc).isoformat()
+    doc["criado_por"] = usuario["email"]
+    result = await db.orcamentos.insert_one(doc)
+    return {"id": str(result.inserted_id), "numero_proposta": doc["numero_proposta"], "message": "Orçamento criado!"}
+
+@app.put("/api/orcamentos/{orcamento_id}")
+async def atualizar_orcamento(orcamento_id: str, orc: OrcamentoSchema, usuario=Depends(verificar_token)):
+    doc = orc.dict()
+    doc["atualizado_em"] = datetime.now(timezone.utc).isoformat()
+    doc["atualizado_por"] = usuario["email"]
+    result = await db.orcamentos.update_one(
+        {"_id": to_object_id(orcamento_id)},
+        {"$set": doc}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Orçamento não encontrado")
+    return {"message": "Orçamento atualizado!"}
+
+@app.patch("/api/orcamentos/{orcamento_id}/status")
+async def atualizar_status_orcamento(orcamento_id: str, data: dict, usuario=Depends(verificar_token)):
+    status_validos = ["PENDENTE", "ENVIADO", "APROVADO", "RECUSADO"]
+    novo_status = data.get("status", "").upper()
+    if novo_status not in status_validos:
+        raise HTTPException(status_code=400, detail=f"Status inválido. Use: {status_validos}")
+    await db.orcamentos.update_one(
+        {"_id": to_object_id(orcamento_id)},
+        {"$set": {"status": novo_status, "atualizado_em": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": f"Status atualizado para {novo_status}"}
+
+@app.delete("/api/orcamentos/{orcamento_id}")
+async def deletar_orcamento(orcamento_id: str, usuario=Depends(verificar_token)):
+    result = await db.orcamentos.delete_one({"_id": to_object_id(orcamento_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Orçamento não encontrado")
+    return {"message": "Orçamento removido!"}
+
+
+# ============================================================
+# 21. Shutdown
 # ============================================================
 
 @app.on_event("shutdown")

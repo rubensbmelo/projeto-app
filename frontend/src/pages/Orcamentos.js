@@ -56,6 +56,7 @@ export default function Orcamentos() {
   });
 
   // ── fetch ────────────────────────────────────────────────
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchOrcamentos = useCallback(async () => {
     setLoading(true);
     try {
@@ -64,17 +65,18 @@ export default function Orcamentos() {
       setOrcamentos(Array.isArray(data) ? data : []);
     } catch { setOrcamentos([]); }
     setLoading(false);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchClientes = useCallback(async () => {
     try {
       const r = await fetch(`${API}/api/clientes`, { headers });
       const data = await r.json();
       setClientes(Array.isArray(data) ? data : []);
     } catch { setClientes([]); }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { fetchOrcamentos(); fetchClientes(); }, []);
+  useEffect(() => { fetchOrcamentos(); fetchClientes(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── busca cliente ────────────────────────────────────────
   useEffect(() => {

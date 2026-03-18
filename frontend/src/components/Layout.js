@@ -38,7 +38,7 @@ const Layout = ({ children }) => {
       <button
         onClick={() => { navigate(item.path); if (isMobile) setSidebarOpen(false); }}
         className={`
-          group w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold uppercase tracking-wider
+          group w-full flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider
           transition-all duration-150 relative overflow-hidden
           ${isActive
             ? 'text-white'
@@ -74,15 +74,15 @@ const Layout = ({ children }) => {
     <div className="flex flex-col h-full">
 
       {/* ── LOGO ── */}
-      <div className="px-4 pt-5 pb-4 border-b border-white/5">
+      <div className="px-4 pt-3 pb-3 border-b border-white/5">
         <div className="flex items-center gap-2.5 mb-0.5">
-          <img src="/logo-repflow.png" alt="RepFlow" className="h-12 w-auto" />
+          <img src="/logo-repflow.png" alt="RepFlow" className="h-9 w-auto" />
         </div>
         <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-1.5">Representação Comercial</p>
       </div>
 
       {/* ── NAV PRINCIPAL ── */}
-      <nav className="flex-1 pt-3 pb-2 overflow-y-auto">
+      <nav className="flex-1 pt-2 pb-1 overflow-y-auto">
 
         <p className="px-4 mb-1.5 text-[8px] font-black uppercase tracking-[0.25em] text-slate-600">
           Módulos
@@ -97,7 +97,7 @@ const Layout = ({ children }) => {
         {/* Seção Admin */}
         {adminItems.length > 0 && (
           <>
-            <div className="mx-4 my-3 border-t border-white/5" />
+            <div className="mx-4 my-2 border-t border-white/5" />
             <p className="px-4 mb-1.5 text-[8px] font-black uppercase tracking-[0.25em] text-slate-600">
               Administrativo
             </p>

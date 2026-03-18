@@ -2,50 +2,41 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Card } from '../components/ui/card';
 import {
   TrendingUp, FileText, DollarSign, Receipt, Clock,
   BarChart3, Calendar, Target, ChevronRight, Weight,
-  Lock, Package, Users, RefreshCw
+  Lock, Package, Users, RefreshCw, ChevronDown, AlertTriangle,
+  CheckCircle, Zap, ClipboardList, BarChart2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
+} from 'recharts';
 
 // ── Helpers ──────────────────────────────────────────────
-const fmtBRL = (v) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+const brl = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+const num = (v, c = 1) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: c, maximumFractionDigits: c }).format(v || 0);
+const fmtDate = (d) => { if (!d) return '---'; return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
+const getDiaSemana = (d) => { if (!d) return ''; return ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d + 'T00:00:00').getDay()]; };
 
-const fmtNum = (v, c = 1) =>
-  new Intl.NumberFormat('pt-BR', { minimumFractionDigits: c, maximumFractionDigits: c }).format(v || 0);
-
-const fmtDate = (d) => {
-  if (!d) return '---';
-  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-};
-
-const getDiaSemana = (d) => {
-  if (!d) return '';
-  const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  return dias[new Date(d + 'T00:00:00').getDay()];
-};
-
-// Retorna domingo e sábado da semana atual
 const getSemanaAtual = () => {
   const hoje = new Date();
-  const diaSemana = hoje.getDay(); // 0=Dom, 6=Sáb
-  const domingo = new Date(hoje);
-  domingo.setDate(hoje.getDate() - diaSemana);
-  const sabado = new Date(domingo);
-  sabado.setDate(domingo.getDate() + 6);
+  const domingo = new Date(hoje); domingo.setDate(hoje.getDate() - hoje.getDay());
+  const sabado = new Date(domingo); sabado.setDate(domingo.getDate() + 6);
   const toStr = (d) => d.toISOString().split('T')[0];
   return { inicio: toStr(domingo), fim: toStr(sabado), hoje: toStr(hoje) };
 };
 
 const STATUS_CFG = {
-  PENDENTE:   { cls: 'bg-amber-100 text-amber-800 border-amber-300' },
-  IMPLANTADO: { cls: 'bg-blue-100 text-blue-800 border-blue-300' },
-  NF_EMITIDA: { cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
-  CANCELADO:  { cls: 'bg-red-100 text-red-700 border-red-300' },
+  PENDENTE:   { cls: 'bg-amber-100 text-amber-800 border-amber-300',   label: 'Pendente' },
+  IMPLANTADO: { cls: 'bg-blue-100 text-blue-800 border-blue-300',      label: 'Implantado' },
+  NF_EMITIDA: { cls: 'bg-emerald-100 text-emerald-800 border-emerald-300', label: 'NF Emitida' },
+  ATRASADO:   { cls: 'bg-red-100 text-red-700 border-red-300',         label: 'Atrasado' },
+  CANCELADO:  { cls: 'bg-slate-100 text-slate-500 border-slate-300',   label: 'Cancelado' },
 };
+
+const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
 // ── Componente ────────────────────────────────────────────
 const Dashboard = () => {
@@ -60,51 +51,76 @@ const Dashboard = () => {
   });
   const [metaGlobal, setMetaGlobal] = useState(0);
   const [pedidosSemana, setPedidosSemana] = useState([]);
+  const [todosPedidos, setTodosPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [diasAbertos, setDiasAbertos] = useState({});
 
   const semana = getSemanaAtual();
 
-  useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadAll(); }, []); // eslint-disable-line
+
+  const getStatusReal = (p) => {
+    if (p.status === 'NF_EMITIDA' || p.status === 'CANCELADO') return p.status;
+    if (p.data_entrega) {
+      const hoje = new Date(); hoje.setHours(0,0,0,0);
+      const entrega = new Date(p.data_entrega + 'T00:00:00');
+      if (entrega < hoje) return 'ATRASADO';
+    }
+    return p.status;
+  };
 
   const loadAll = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
       const [statsRes, metasRes, pedidosRes] = await Promise.all([
         api.get('/dashboard/stats'),
         api.get('/metas'),
         api.get('/pedidos'),
       ]);
-
       setStats(statsRes.data);
 
-      // Meta do mês atual
       const mesAtual = (new Date().getMonth() + 1).toString();
-      const totalMeta = (metasRes.data || [])
-        .filter(m => m.mes === mesAtual)
-        .reduce((acc, m) => acc + parseFloat(m.valor_ton || 0), 0);
+      const totalMeta = (metasRes.data || []).filter(m => m.mes === mesAtual).reduce((a, m) => a + parseFloat(m.valor_ton || 0), 0);
       setMetaGlobal(totalMeta);
 
-      // Pedidos da semana — entrega entre domingo e sábado, excluir CANCELADO e NF_EMITIDA
-      const semanaFiltrados = (pedidosRes.data || []).filter(p => {
+      const todos = (pedidosRes.data || []).map(p => ({ ...p, statusReal: getStatusReal(p) }));
+      setTodosPedidos(todos);
+
+      const semanaFiltrados = todos.filter(p => {
         if (!p.data_entrega) return false;
         const dataEntrega = p.data_entrega.substring(0, 10);
-        const statusValido = p.status !== 'CANCELADO' && p.status !== 'NF_EMITIDA';
-        return dataEntrega >= semana.inicio && dataEntrega <= semana.fim && statusValido;
-      });
-      // Ordena por data de entrega
-      semanaFiltrados.sort((a, b) => a.data_entrega?.localeCompare(b.data_entrega));
+        return dataEntrega >= semana.inicio && dataEntrega <= semana.fim && p.status !== 'CANCELADO' && p.status !== 'NF_EMITIDA';
+      }).sort((a, b) => a.data_entrega?.localeCompare(b.data_entrega));
       setPedidosSemana(semanaFiltrados);
+
+      // Abrir dia de hoje por padrão
+      setDiasAbertos({ [semana.hoje]: true });
 
     } catch { toast.error('Erro ao sincronizar indicadores'); }
     finally { setLoading(false); setRefreshing(false); }
   };
 
+  const toggleDia = (dia) => setDiasAbertos(prev => ({ ...prev, [dia]: !prev[dia] }));
+
   const porcentagemMeta = metaGlobal > 0 ? (stats.tonelagem_faturada / metaGlobal) * 100 : 0;
 
-  // Label da semana
-  const labelSemana = `${fmtDate(semana.inicio)} a ${fmtDate(semana.fim)}`;
+  // Faturamento mensal para o gráfico
+  const faturamentoPorMes = () => {
+    const anoAtual = new Date().getFullYear();
+    const arr = Array(12).fill(0);
+    todosPedidos.filter(p => p.status === 'NF_EMITIDA').forEach(p => {
+      const ano = p.criado_em?.substring(0,4);
+      if (ano === String(anoAtual)) {
+        const mes = parseInt(p.criado_em?.substring(5,7)) - 1;
+        if (mes >= 0 && mes < 12) arr[mes] += p.valor_total || 0;
+      }
+    });
+    return MESES.map((m,i) => ({ mes: m, valor: arr[i] }));
+  };
+
+  // Pedidos atrasados
+  const atrasados = todosPedidos.filter(p => p.statusReal === 'ATRASADO');
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-[80vh] gap-4">
@@ -117,250 +133,253 @@ const Dashboard = () => {
     <div className="p-4 md:p-6 bg-[#E9EEF2] min-h-screen font-sans antialiased text-slate-800">
 
       {/* ── HEADER ── */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 border-b-2 border-[#0A3D73] pb-4 gap-3">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">Dashboard</h1>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5 flex items-center gap-1.5">
-            <BarChart3 size={11} className="text-[#0A3D73]" />
-            Inteligência Operacional · {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+          <h1 className="text-2xl font-black text-slate-900">Dashboard</h1>
+          <p className="text-xs text-slate-500 font-semibold mt-0.5">
+            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {!isAdmin && (
-            <div className="flex items-center gap-1.5 bg-slate-200 px-3 py-1.5 border border-slate-300">
-              <Lock size={11} className="text-slate-500" />
-              <span className="text-[9px] font-black text-slate-500 uppercase">Somente Leitura</span>
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-lg">
+              <Lock size={11} className="text-slate-400" />
+              <span className="text-xs font-bold text-slate-400">Somente Leitura</span>
             </div>
           )}
-          <button
-            onClick={() => loadAll(true)}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 bg-white border border-slate-300 px-3 py-1.5 text-[9px] font-black uppercase text-slate-600 hover:border-[#0A3D73] hover:text-[#0A3D73] transition-all"
-          >
-            <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
+          <button onClick={() => loadAll(true)} disabled={refreshing}
+            className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 rounded-lg hover:border-[#0A3D73] hover:text-[#0A3D73] transition-all shadow-sm">
+            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             {refreshing ? 'Atualizando...' : 'Atualizar'}
           </button>
         </div>
       </div>
 
-      {/* ── PAINEL DA SEMANA ── */}
-      <div className="mb-5">
-        <Card className="rounded-none border border-slate-300 shadow-xl overflow-hidden bg-white">
-          {/* Header do painel */}
-          <div className="px-4 py-3 bg-[#0A3D73] text-white flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar size={14} className="text-blue-300" />
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest">Painel da Semana</p>
-                <p className="text-[9px] text-blue-300 font-bold mt-0.5">{labelSemana} · Entregas previstas</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-[9px] text-blue-300 font-bold uppercase">Pedidos</p>
-                <p className="text-lg font-black font-mono">{pedidosSemana.length}</p>
-              </div>
-              <button
-                onClick={() => navigate('/pedidos')}
-                className="flex items-center gap-1 text-[9px] font-black uppercase text-blue-300 hover:text-white transition-colors border border-blue-600 hover:border-white px-2 py-1"
-              >
-                Ver todos <ChevronRight size={10} />
-              </button>
+      {/* ── ALERTA ATRASADOS ── */}
+      {atrasados.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertTriangle size={20} className="text-red-500 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-black text-red-700">{atrasados.length} pedido{atrasados.length > 1 ? 's' : ''} em atraso</p>
+              <p className="text-xs text-red-500 mt-0.5">Prazo de entrega vencido sem NF emitida</p>
             </div>
           </div>
+          <button onClick={() => navigate('/pedidos')}
+            className="flex items-center gap-1.5 text-xs font-black text-red-600 border border-red-300 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors flex-shrink-0">
+            Ver pedidos <ChevronRight size={12} />
+          </button>
+        </div>
+      )}
 
-          {/* Dias da semana como sub-header */}
-          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
-            {Array.from({ length: 7 }).map((_, i) => {
-              const d = new Date(semana.inicio + 'T00:00:00');
-              d.setDate(d.getDate() + i);
-              const str = d.toISOString().split('T')[0];
-              const isHoje = str === semana.hoje;
-              const qtd = pedidosSemana.filter(p => p.data_entrega?.substring(0, 10) === str).length;
-              const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-              return (
-                <div key={i} className={`text-center py-2 border-r border-slate-200 last:border-r-0 ${isHoje ? 'bg-[#0A3D73]/10' : ''}`}>
-                  <p className={`text-[9px] font-black uppercase ${isHoje ? 'text-[#0A3D73]' : 'text-slate-400'}`}>{dias[d.getDay()]}</p>
-                  <p className={`text-[10px] font-black ${isHoje ? 'text-[#0A3D73]' : 'text-slate-600'}`}>{String(d.getDate()).padStart(2, '0')}</p>
-                  {qtd > 0 && (
-                    <span className="inline-block mt-0.5 w-4 h-4 bg-[#0A3D73] text-white text-[8px] font-black rounded-full leading-4">
-                      {qtd}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+      {/* ── KPIs PRINCIPAIS ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        {[
+          { label: 'Faturado no Mês',   value: brl(stats.faturado_mes_valor),           icon: Receipt,    cor: '#166534', fundo: '#DCFCE7' },
+          { label: 'Comissão Realizada', value: brl(stats.comissao_realizada),           icon: DollarSign, cor: '#0A3D73', fundo: '#DBEAFE' },
+          { label: 'A Receber',          value: brl(stats.comissoes_a_receber),          icon: TrendingUp, cor: '#92400E', fundo: '#FEF3C7' },
+          { label: 'Pedidos em Aberto',  value: `${todosPedidos.filter(p => ['PENDENTE','IMPLANTADO'].includes(p.status)).length}`, icon: FileText, cor: '#1E40AF', fundo: '#EFF6FF' },
+        ].map((k,i) => (
+          <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{k.label}</p>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{background: k.fundo}}>
+                <k.icon size={15} style={{color: k.cor}} />
+              </div>
+            </div>
+            <p className="text-xl font-black" style={{color: k.cor}}>{k.value}</p>
           </div>
-
-          {/* Lista de pedidos */}
-          {pedidosSemana.length === 0 ? (
-            <div className="py-10 text-center">
-              <Package size={28} className="mx-auto mb-2 text-slate-200" />
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nenhuma entrega prevista para esta semana</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {pedidosSemana.map((p, idx) => {
-                const dataStr = p.data_entrega?.substring(0, 10) || '';
-                const isHoje = dataStr === semana.hoje;
-                const cfg = STATUS_CFG[p.status] || STATUS_CFG.PENDENTE;
-                return (
-                  <div
-                    key={p.id}
-                    onClick={() => navigate('/pedidos')}
-                    className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors text-[11px] ${
-                      isHoje ? 'bg-blue-50/60 hover:bg-blue-100/60' : idx % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'bg-slate-50/40 hover:bg-slate-100/60'
-                    }`}
-                  >
-                    {/* Data */}
-                    <div className={`w-12 text-center shrink-0 ${isHoje ? 'text-[#0A3D73]' : 'text-slate-400'}`}>
-                      <p className="text-[9px] font-black uppercase">{getDiaSemana(dataStr)}</p>
-                      <p className="text-[12px] font-black font-mono">{fmtDate(dataStr)}</p>
-                    </div>
-
-                    {/* Divider */}
-                    <div className={`w-0.5 h-8 shrink-0 ${isHoje ? 'bg-[#0A3D73]' : 'bg-slate-200'}`} />
-
-                    {/* FE */}
-                    <div className="w-20 shrink-0">
-                      <p className="text-[8px] font-black text-slate-400 uppercase">FE</p>
-                      <p className="font-black text-blue-700 font-mono text-[11px] truncate">{p.numero_fe || '---'}</p>
-                    </div>
-
-                    {/* Item */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[8px] font-black text-slate-400 uppercase">Produto</p>
-                      <p className="font-bold text-slate-700 uppercase truncate text-[11px]">{p.item_nome || '---'}</p>
-                    </div>
-
-                    {/* Cliente */}
-                    <div className="w-28 shrink-0 hidden sm:block">
-                      <p className="text-[8px] font-black text-slate-400 uppercase">Cliente</p>
-                      <p className="font-black text-slate-800 uppercase truncate text-[11px]">{p.cliente_nome?.split(' ')[0] || '---'}</p>
-                    </div>
-
-                    {/* Status */}
-                    <span className={`shrink-0 px-2 py-0.5 text-[9px] font-black border whitespace-nowrap ${cfg.cls}`}>
-                      {p.status}
-                    </span>
-
-                    {isHoje && (
-                      <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[#0A3D73] animate-pulse" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
+        ))}
       </div>
 
-      {/* ── SEÇÃO KPIs ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+      {/* ── META + GRÁFICO ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
 
-        {/* META MENSAL */}
-        <Card className="lg:col-span-2 p-5 bg-white rounded-none border border-slate-300 shadow-md">
-          <div className="flex justify-between items-start mb-4">
+        {/* META */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Progresso · Meta Mensal</p>
-              <h2 className="text-base font-black text-[#0A3D73] uppercase mt-0.5">Tonelagem Faturada</h2>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Meta Mensal</p>
+              <p className="text-sm font-black text-slate-800 mt-0.5">Tonelagem Faturada</p>
             </div>
-            <Target size={22} className="text-slate-200" />
+            <Target size={20} className="text-slate-300" />
           </div>
           <div className="flex justify-between items-end mb-2">
             <div>
-              <span className="text-3xl font-black text-slate-900 font-mono">{fmtNum(stats.tonelagem_faturada)}</span>
-              <span className="text-xs font-bold text-slate-400 ml-1.5">/ {fmtNum(metaGlobal)} TON</span>
+              <span className="text-3xl font-black text-[#0A3D73]">{num(stats.tonelagem_faturada)}</span>
+              <span className="text-xs font-bold text-slate-400 ml-1">/ {num(metaGlobal)} TON</span>
             </div>
-            <span className={`text-base font-black ${porcentagemMeta >= 100 ? 'text-emerald-600' : 'text-[#0A3D73]'}`}>
-              {fmtNum(porcentagemMeta)}%
+            <span className={`text-lg font-black ${porcentagemMeta >= 100 ? 'text-green-600' : 'text-[#0A3D73]'}`}>
+              {num(porcentagemMeta)}%
             </span>
           </div>
-          <div className="w-full bg-slate-100 h-3 overflow-hidden">
-            <div
-              className={`h-full transition-all duration-1000 ${porcentagemMeta >= 100 ? 'bg-emerald-500' : 'bg-[#0A3D73]'}`}
-              style={{ width: `${Math.min(porcentagemMeta, 100)}%` }}
-            />
+          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+            <div className={`h-full transition-all duration-1000 rounded-full ${porcentagemMeta >= 100 ? 'bg-green-500' : 'bg-[#0A3D73]'}`}
+              style={{ width: `${Math.min(porcentagemMeta, 100)}%` }} />
           </div>
-          <div className="flex justify-between mt-1.5">
-            <p className="text-[8px] text-slate-400 font-bold">{fmtNum(stats.tonelagem_faturada, 3)} TON faturadas</p>
-            <p className="text-[8px] text-slate-400 font-bold">{fmtNum(metaGlobal)} TON de meta</p>
+          <div className="flex justify-between mt-2">
+            <p className="text-xs text-slate-400">{num(stats.tonelagem_faturada, 3)} TON faturadas</p>
+            <p className="text-xs text-slate-400">Meta: {num(metaGlobal)} TON</p>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-400 font-semibold">Carteira implantada</span>
+              <span className="font-black text-slate-700">{num(stats.tonelagem_implantada, 3)} TON</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-400 font-semibold">Comissão prevista</span>
+              <span className="font-black text-slate-700">{brl(stats.comissao_prevista)}</span>
+            </div>
           </div>
           {isAdmin && (
-            <button
-              onClick={() => navigate('/metas')}
-              className="mt-4 w-full py-2 bg-slate-50 hover:bg-[#0A3D73] hover:text-white transition-all text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 border border-slate-200"
-            >
-              Ver detalhamento por cliente <ChevronRight size={11} />
+            <button onClick={() => navigate('/metas')}
+              className="mt-4 w-full py-2 bg-slate-50 hover:bg-[#0A3D73] hover:text-white transition-all text-xs font-black rounded-lg border border-slate-200 flex items-center justify-center gap-1.5">
+              Ver metas por cliente <ChevronRight size={12} />
             </button>
           )}
-        </Card>
+        </div>
 
-        {/* COMISSÃO */}
-        <Card className="p-5 bg-[#0A3D73] text-white rounded-none border-none shadow-md flex flex-col justify-between">
-          <div>
-            <div className="flex justify-between items-start mb-3">
-              <DollarSign size={20} className="text-blue-300" />
-              <span className="bg-white/10 text-[9px] px-2 py-0.5 font-black uppercase text-blue-200">Financeiro</span>
-            </div>
-            <p className="text-[9px] font-bold uppercase tracking-widest opacity-60">Comissão Realizada</p>
-            <h2 className="text-2xl font-black mt-1 font-mono">{fmtBRL(stats.comissao_realizada)}</h2>
-          </div>
-          <div className="mt-4 pt-3 border-t border-white/10 space-y-1">
-            <div className="flex justify-between">
-              <p className="text-[9px] font-bold uppercase opacity-50">Prevista (Implantado)</p>
-              <p className="text-[10px] font-black opacity-80 font-mono">{fmtBRL(stats.comissao_prevista)}</p>
-            </div>
-            <div className="flex justify-between">
-              <p className="text-[9px] font-bold uppercase opacity-50">A Receber</p>
-              <p className="text-[10px] font-black text-blue-200 font-mono">{fmtBRL(stats.comissoes_a_receber)}</p>
-            </div>
-          </div>
-        </Card>
+        {/* GRÁFICO */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Faturamento Mensal</p>
+          <p className="text-sm font-black text-slate-800 mb-4">{new Date().getFullYear()}</p>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={faturamentoPorMes()} margin={{top:0,right:10,bottom:0,left:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <XAxis dataKey="mes" tick={{fontSize:11, fontWeight:700}} />
+              <YAxis tick={{fontSize:10}} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
+              <Tooltip formatter={v => brl(v)} labelStyle={{fontWeight:700}} />
+              <Bar dataKey="valor" fill="#0A3D73" radius={[4,4,0,0]} name="Faturamento" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* ── MINI KPIs ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        {[
-          { label: 'Carteira (TON)',   value: `${fmtNum(stats.tonelagem_implantada, 3)} TON`, icon: Weight,   color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',      link: '/pedidos' },
-          { label: 'Faturamento Mês', value: fmtBRL(stats.faturado_mes_valor),               icon: Receipt,  color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', link: '/notas-fiscais' },
-          { label: 'Venda Bruta Mês', value: fmtBRL(stats.pedidos_mes_valor),                icon: FileText, color: 'text-slate-700',   bg: 'bg-white border-slate-200',        link: '/pedidos' },
-          { label: 'Comissão Mês',    value: fmtBRL(stats.comissao_mes),                     icon: TrendingUp,color:'text-amber-700',   bg: 'bg-amber-50 border-amber-200',     link: '/comissoes' },
-        ].map((item, i) => (
-          <div
-            key={i}
-            onClick={() => navigate(item.link)}
-            className={`flex items-center gap-3 p-3 border ${item.bg} cursor-pointer hover:shadow-md transition-all group`}
-          >
-            <item.icon size={18} className={`${item.color} shrink-0`} />
-            <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider truncate">{item.label}</p>
-              <p className={`text-sm font-black ${item.color} font-mono mt-0.5`}>{item.value}</p>
+      {/* ── PAINEL DA SEMANA (ACORDEÃO) ── */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-5">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-[#EFF6FF] rounded-lg flex items-center justify-center">
+              <Calendar size={16} className="text-[#0A3D73]" />
             </div>
-            <ChevronRight size={11} className="text-slate-300 group-hover:text-slate-500 shrink-0 ml-auto" />
+            <div>
+              <p className="text-sm font-black text-slate-800">Painel da Semana</p>
+              <p className="text-xs text-slate-400">{fmtDate(semana.inicio)} a {fmtDate(semana.fim)} · Entregas previstas</p>
+            </div>
           </div>
-        ))}
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-xs text-slate-400 font-bold">{pedidosSemana.length} pedidos</p>
+            </div>
+            <button onClick={() => navigate('/pedidos')}
+              className="flex items-center gap-1 text-xs font-black text-[#0A3D73] border border-[#0A3D73]/30 px-3 py-1.5 rounded-lg hover:bg-[#0A3D73] hover:text-white transition-colors">
+              Ver todos <ChevronRight size={12} />
+            </button>
+          </div>
+        </div>
+
+        {/* Dias em acordeão */}
+        <div className="divide-y divide-slate-100">
+          {Array.from({ length: 7 }).map((_, i) => {
+            const d = new Date(semana.inicio + 'T00:00:00');
+            d.setDate(d.getDate() + i);
+            const dStr = d.toISOString().split('T')[0];
+            const isHoje = dStr === semana.hoje;
+            const pedidosDia = pedidosSemana.filter(p => p.data_entrega?.substring(0,10) === dStr);
+            const aberto = diasAbertos[dStr];
+
+            return (
+              <div key={dStr}>
+                {/* Linha do dia — clicável */}
+                <button
+                  onClick={() => pedidosDia.length > 0 && toggleDia(dStr)}
+                  className={`w-full flex items-center justify-between px-5 py-3 transition-colors text-left
+                    ${isHoje ? 'bg-blue-50' : 'bg-white hover:bg-slate-50'}
+                    ${pedidosDia.length === 0 ? 'cursor-default opacity-50' : 'cursor-pointer'}
+                  `}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 text-center flex-shrink-0`}>
+                      <p className={`text-xs font-black uppercase ${isHoje ? 'text-[#0A3D73]' : 'text-slate-400'}`}>{DIAS[d.getDay()]}</p>
+                      <p className={`text-sm font-black ${isHoje ? 'text-[#0A3D73]' : 'text-slate-600'}`}>{String(d.getDate()).padStart(2,'0')}</p>
+                    </div>
+                    {isHoje && <span className="text-xs font-black text-[#0A3D73] bg-blue-100 px-2 py-0.5 rounded-full">Hoje</span>}
+                    {pedidosDia.length === 0 && <span className="text-xs text-slate-400">Sem entregas</span>}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {pedidosDia.length > 0 && (
+                      <>
+                        <span className="text-xs font-black text-white bg-[#0A3D73] w-6 h-6 rounded-full flex items-center justify-center">{pedidosDia.length}</span>
+                        {/* mini status badges */}
+                        <div className="hidden md:flex gap-1">
+                          {Object.entries(pedidosDia.reduce((a,p) => { const s = p.statusReal||p.status; a[s]=(a[s]||0)+1; return a; }, {})).map(([s,q]) => (
+                            <span key={s} className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${STATUS_CFG[s]?.cls || ''}`}>{q} {s}</span>
+                          ))}
+                        </div>
+                        <ChevronDown size={14} className={`text-slate-400 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+                      </>
+                    )}
+                  </div>
+                </button>
+
+                {/* Pedidos do dia expandidos */}
+                {aberto && pedidosDia.length > 0 && (
+                  <div className="bg-slate-50 border-t border-slate-100">
+                    {pedidosDia.map((p, idx) => {
+                      const statusReal = p.statusReal || p.status;
+                      const cfg = STATUS_CFG[statusReal] || STATUS_CFG.PENDENTE;
+                      return (
+                        <div key={p.id || idx}
+                          onClick={() => navigate('/pedidos')}
+                          className="flex items-center gap-3 px-5 py-2.5 hover:bg-white cursor-pointer transition-colors border-b border-slate-100 last:border-0 text-xs">
+                          <div className="w-16 flex-shrink-0">
+                            <p className="text-slate-400 font-bold text-[10px] uppercase">FE</p>
+                            <p className="font-black text-[#0A3D73] font-mono truncate">{p.numero_fe || '---'}</p>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-slate-400 font-bold text-[10px] uppercase">Produto</p>
+                            <p className="font-bold text-slate-700 truncate">{p.item_nome || '---'}</p>
+                          </div>
+                          <div className="w-28 flex-shrink-0 hidden sm:block">
+                            <p className="text-slate-400 font-bold text-[10px] uppercase">Cliente</p>
+                            <p className="font-black text-slate-800 truncate">{p.cliente_nome?.split(' ')[0] || '---'}</p>
+                          </div>
+                          <div className="w-20 flex-shrink-0 hidden md:block">
+                            <p className="text-slate-400 font-bold text-[10px] uppercase">Valor</p>
+                            <p className="font-black text-slate-700">{brl(p.valor_total)}</p>
+                          </div>
+                          <span className={`flex-shrink-0 px-2 py-0.5 text-[9px] font-black border rounded-full ${cfg.cls}`}>{cfg.label}</span>
+                          <ChevronRight size={12} className="text-slate-300 flex-shrink-0" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* ── ATALHOS RÁPIDOS ── */}
+      {/* ── ATALHOS ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Novo Pedido',   icon: FileText, link: '/pedidos',       color: 'hover:bg-[#0A3D73] hover:text-white' },
-          { label: 'Clientes',      icon: Users,    link: '/clientes',       color: 'hover:bg-[#0A3D73] hover:text-white' },
-          { label: 'Materiais',     icon: Package,  link: '/materiais',      color: 'hover:bg-[#0A3D73] hover:text-white' },
-          { label: 'Comissões',     icon: DollarSign,link: '/comissoes',     color: 'hover:bg-[#0A3D73] hover:text-white' },
+          { label: 'Pedidos',     icon: FileText,      link: '/pedidos' },
+          { label: 'Orçamentos',  icon: ClipboardList, link: '/orcamentos' },
+          { label: 'Relatórios',  icon: BarChart2,     link: '/relatorios' },
+          { label: 'Comissões',   icon: DollarSign,    link: '/comissoes' },
         ].map((item, i) => (
-          <button
-            key={i}
-            onClick={() => navigate(item.link)}
-            className={`flex items-center justify-center gap-2 p-3 bg-white border border-slate-200 text-[10px] font-black uppercase tracking-wider text-slate-600 transition-all ${item.color} group`}
-          >
-            <item.icon size={13} className="shrink-0" />
-            {item.label}
-            <ChevronRight size={10} className="ml-auto text-slate-300 group-hover:text-current" />
+          <button key={i} onClick={() => navigate(item.link)}
+            className="flex items-center justify-between gap-2 p-3.5 bg-white border border-slate-200 text-xs font-black uppercase tracking-wide text-slate-600 rounded-xl hover:bg-[#0A3D73] hover:text-white hover:border-[#0A3D73] transition-all shadow-sm group">
+            <div className="flex items-center gap-2">
+              <item.icon size={14} className="flex-shrink-0" />
+              {item.label}
+            </div>
+            <ChevronRight size={11} className="text-slate-300 group-hover:text-white" />
           </button>
         ))}
       </div>
+
     </div>
   );
 };

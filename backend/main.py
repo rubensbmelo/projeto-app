@@ -808,7 +808,21 @@ async def listar_vencimentos(usuario=Depends(verificar_token)):
     vencimentos = await db.vencimentos.find().sort("data_vencimento", 1).to_list(length=1000)
     return [serialize(v) for v in vencimentos]
 
-@app.put("/api/vencimentos/{venc_id}")
+@app.post("/api/admin/reset-vencimentos-pago")
+async def reset_vencimentos_pago(admin=Depends(apenas_admin)):
+    """
+    Reseta todos os vencimentos marcados como Pago de volta para Pendente,
+    para que sejam recalculados corretamente na próxima chamada de GET /vencimentos.
+    Usar apenas uma vez para corrigir status definidos automaticamente pelo sistema antigo.
+    """
+    result = await db.vencimentos.update_many(
+        {"status": "Pago", "data_pagamento": None},
+        {"$set": {"status": "Pendente"}}
+    )
+    return {"message": f"{result.modified_count} vencimentos resetados para Pendente!"}
+
+
+
 async def atualizar_vencimento(venc_id: str, data: VencimentoUpdateSchema, usuario=Depends(apenas_admin)):
     update = {k: v for k, v in data.dict().items() if v is not None}
     if not update:

@@ -619,7 +619,7 @@ const Pedidos = () => {
             </div>
 
             <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={()=>setDialogOpen(false)} className="rounded-xl text-xs font-black uppercase px-6 h-10 border-slate-200">Cancelar</Button>
+              <Button type="button" onClick={()=>setDialogOpen(false)} className="rounded-xl text-xs font-black uppercase px-6 h-10 border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">Cancelar</Button>
               <Button type="submit" className="bg-[#0A3D73] hover:bg-[#082D54] text-white px-8 rounded-xl text-xs font-black uppercase h-10">Gravar Pedido</Button>
             </div>
           </form>
@@ -677,7 +677,7 @@ const Pedidos = () => {
                 <input value={entregaForm.observacao} onChange={e=>setEntregaForm({...entregaForm,observacao:e.target.value})} className={`${inp} h-16`}/>
               </div>
               <div className="flex gap-3 pt-2 border-t border-slate-100">
-                <Button type="button" variant="outline" onClick={()=>setEntregaDialog(false)} className="rounded-xl text-xs font-black uppercase h-10 flex-1">Cancelar</Button>
+                <Button type="button" onClick={()=>setEntregaDialog(false)} className="rounded-xl text-xs font-black uppercase h-10 flex-1 border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">Cancelar</Button>
                 <Button type="button" onClick={handleConfirmarEntrega} disabled={!entregaForm.qtde_entregue}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase h-10 flex-1">
                   <CheckCircle2 size={12} className="mr-1"/> Confirmar

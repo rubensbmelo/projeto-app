@@ -3,7 +3,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { FilePlus, Search, CalendarDays, ReceiptText, Lock, CheckCircle2, DollarSign, Trash2, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { FilePlus, Search, CalendarDays, ReceiptText, Lock, CheckCircle2, DollarSign, Trash2, ChevronDown, ChevronUp, Package, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const fmt = (v) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0);
@@ -29,6 +29,121 @@ const getVariacaoInfo = (qtdePedido, qtdeEntregue) => {
   if (abs <= 10) return { cor: 'bg-emerald-100 text-emerald-800 border-emerald-300', semaforo: '🟢', label: `${sinal}${variacao.toFixed(1)}%`, ok: true };
   if (abs <= 20) return { cor: 'bg-orange-100 text-orange-800 border-orange-300', semaforo: '🟡', label: `${sinal}${variacao.toFixed(1)}%`, ok: false };
   return { cor: 'bg-red-100 text-red-800 border-red-300', semaforo: '🔴', label: `${sinal}${variacao.toFixed(1)}%`, ok: false };
+};
+
+
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+const DateRangePicker = ({ dateStart, dateEnd, onChange, onClear }) => {
+  const today = new Date();
+  const [open, setOpen] = React.useState(false);
+  const [viewDate, setViewDate] = React.useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selecting, setSelecting] = React.useState('start');
+  const [hoverDate, setHoverDate] = React.useState(null);
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+  const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
+  const toStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const parseD = (s) => s ? new Date(s + 'T00:00:00') : null;
+
+  const handleDayClick = (day) => {
+    const clicked = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    const str = toStr(clicked);
+    if (selecting === 'start') { onChange({ start: str, end: null }); setSelecting('end'); }
+    else {
+      const start = parseD(dateStart);
+      if (clicked < start) onChange({ start: str, end: dateStart });
+      else onChange({ start: dateStart, end: str });
+      setSelecting('start'); setOpen(false);
+    }
+  };
+
+  const inRange = (day) => {
+    const d = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    const s = parseD(dateStart); const e = parseD(dateEnd) || parseD(hoverDate);
+    if (!s) return false;
+    if (!e) return toStr(d) === dateStart;
+    return d >= s && d <= e;
+  };
+  const isStart = (day) => toStr(new Date(viewDate.getFullYear(), viewDate.getMonth(), day)) === dateStart;
+  const isEnd = (day) => toStr(new Date(viewDate.getFullYear(), viewDate.getMonth(), day)) === (dateEnd || hoverDate);
+
+  const daysInMonth = getDaysInMonth(viewDate.getFullYear(), viewDate.getMonth());
+  const firstDay = getFirstDayOfMonth(viewDate.getFullYear(), viewDate.getMonth());
+
+  const labelBtn = () => {
+    if (dateStart && dateEnd) return `${fmtDate(dateStart)} → ${fmtDate(dateEnd)}`;
+    if (dateStart) return `A partir de ${fmtDate(dateStart)}`;
+    return 'Filtrar por Data';
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setOpen(o => !o)}
+          className={`flex items-center gap-2 h-9 px-3 text-xs font-bold rounded-lg border transition-all ${dateStart ? 'bg-[#0A3D73] text-white border-[#0A3D73]' : 'bg-white text-slate-600 border-slate-200 hover:border-[#0A3D73]'}`}>
+          <Calendar size={13}/><span className="hidden sm:inline">{labelBtn()}</span>
+        </button>
+        {(dateStart || dateEnd) && (
+          <button onClick={onClear} className="h-9 w-9 flex items-center justify-center bg-white border border-slate-200 rounded-lg hover:border-red-400 hover:text-red-500 transition-all text-slate-400">
+            <X size={13}/>
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-slate-200 shadow-2xl rounded-xl w-72 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 bg-[#0A3D73] text-white">
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1))} className="p-1 hover:bg-white/10 rounded-lg"><ChevronLeft size={14}/></button>
+            <span className="text-xs font-black uppercase tracking-widest">{MESES[viewDate.getMonth()]} {viewDate.getFullYear()}</span>
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1))} className="p-1 hover:bg-white/10 rounded-lg"><ChevronRight size={14}/></button>
+          </div>
+          <div className="px-3 py-2 bg-slate-50 border-b border-slate-100">
+            <p className="text-xs font-bold text-slate-400">{selecting === 'start' ? '① Selecione a data inicial' : '② Selecione a data final'}</p>
+          </div>
+          <div className="grid grid-cols-7 px-3 pt-2">
+            {DIAS_SEMANA.map(d => <div key={d} className="text-center text-xs font-black text-slate-400 py-1">{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7 px-3 pb-3 gap-y-0.5">
+            {Array.from({length: firstDay}).map((_,i) => <div key={`e-${i}`}/>)}
+            {Array.from({length: daysInMonth}).map((_,i) => {
+              const day = i+1;
+              const iR = inRange(day); const iS = isStart(day); const iE = isEnd(day);
+              const isT = toStr(new Date(viewDate.getFullYear(), viewDate.getMonth(), day)) === toStr(today);
+              return (
+                <button key={day} onClick={() => handleDayClick(day)}
+                  onMouseEnter={() => { if (selecting === 'end' && dateStart) setHoverDate(toStr(new Date(viewDate.getFullYear(), viewDate.getMonth(), day))); }}
+                  onMouseLeave={() => setHoverDate(null)}
+                  className={`h-8 w-full text-xs font-bold rounded transition-all
+                    ${iS||iE ? 'bg-[#0A3D73] text-white' : ''}
+                    ${iR&&!iS&&!iE ? 'bg-blue-100 text-blue-800' : ''}
+                    ${!iR&&!iS&&!iE ? 'hover:bg-slate-100 text-slate-700' : ''}
+                    ${isT&&!iS&&!iE ? 'ring-1 ring-[#0A3D73] text-[#0A3D73] font-black' : ''}`}>
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+          <div className="border-t border-slate-100 px-3 py-2 flex flex-wrap gap-1.5">
+            {[
+              {label:'Este mês', fn:()=>{const n=new Date();onChange({start:toStr(new Date(n.getFullYear(),n.getMonth(),1)),end:toStr(new Date(n.getFullYear(),n.getMonth()+1,0))});setSelecting('start');setOpen(false);}},
+              {label:'Mês anterior', fn:()=>{const n=new Date();onChange({start:toStr(new Date(n.getFullYear(),n.getMonth()-1,1)),end:toStr(new Date(n.getFullYear(),n.getMonth(),0))});setSelecting('start');setOpen(false);}},
+              {label:'Este ano', fn:()=>{const n=new Date();onChange({start:`${n.getFullYear()}-01-01`,end:`${n.getFullYear()}-12-31`});setSelecting('start');setOpen(false);}},
+            ].map(s => (
+              <button key={s.label} onClick={s.fn} className="text-xs font-bold px-2 py-1 bg-slate-100 hover:bg-[#0A3D73] hover:text-white rounded transition-all text-slate-600">{s.label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const NotasFiscais = () => {
@@ -127,16 +242,25 @@ const NotasFiscais = () => {
   const pedidosDisponiveis = pedidos.filter(p => p.status !== 'NF_EMITIDA' && p.status !== 'CANCELADO');
 
   const notasFiltradas = notas.filter(n => {
-    if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
-    return n.numero_nf?.toLowerCase().includes(s) || n.cliente_nome?.toLowerCase().includes(s) || n.numero_fabrica?.toLowerCase().includes(s) || n.numero_fe?.toLowerCase().includes(s);
+    const matchSearch = !s || n.numero_nf?.toLowerCase().includes(s) || n.cliente_nome?.toLowerCase().includes(s) || n.numero_fabrica?.toLowerCase().includes(s) || n.numero_fe?.toLowerCase().includes(s);
+    let matchDate = true;
+    if (dateStart || dateEnd) {
+      const dataRef = n.data_emissao || n.criado_em?.substring(0,10) || '';
+      if (dateStart && dateEnd) matchDate = dataRef >= dateStart && dataRef <= dateEnd;
+      else if (dateStart) matchDate = dataRef >= dateStart;
+      else if (dateEnd) matchDate = dataRef <= dateEnd;
+    }
+    return matchSearch && matchDate;
   });
 
-  const totalNFs = notas.length;
-  const totalFaturado = notas.reduce((a,n) => a+(n.valor_total||0), 0);
-  const totalComissao = notas.reduce((a,n) => a+(n.comissao_total||0), 0);
-  const totalPendente = vencimentos.filter(v => v.status !== 'Pago').reduce((a,v) => a+(v.comissao_calculada||0), 0);
-  const totalAtrasado = vencimentos.filter(v => v.status === 'Atrasado').reduce((a,v) => a+(v.comissao_calculada||0), 0);
+  const totalNFs = notasFiltradas.length;
+  const totalFaturado = notasFiltradas.reduce((a,n) => a+(n.valor_total||0), 0);
+  const totalComissao = notasFiltradas.reduce((a,n) => a+(n.comissao_total||0), 0);
+  const notasFiltradasIds = new Set(notasFiltradas.map(n => n.id));
+  const vencsFiltrados = vencimentos.filter(v => notasFiltradasIds.has(v.nota_fiscal_id));
+  const totalPendente = vencsFiltrados.filter(v => v.status !== 'Pago').reduce((a,v) => a+(v.comissao_calculada||0), 0);
+  const totalAtrasado = vencsFiltrados.filter(v => v.status === 'Atrasado').reduce((a,v) => a+(v.comissao_calculada||0), 0);
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-[80vh] gap-4">
@@ -151,13 +275,18 @@ const NotasFiscais = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-3">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">Controle Financeiro {!isAdmin && <Lock size={14} className="text-slate-400"/>}</h1>
-          <p className="text-xs text-slate-500 font-semibold mt-0.5">Notas Fiscais & Vencimentos · {totalNFs} NFs</p>
+          <p className="text-xs text-slate-500 font-semibold mt-0.5">Notas Fiscais & Vencimentos · {notasFiltradas.length} NFs encontradas</p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <div className="flex items-center bg-white border border-slate-200 rounded-lg h-9 px-3 gap-2 shadow-sm">
             <Search size={13} className="text-slate-400"/>
             <input placeholder="NF, cliente, pedido..." className="text-xs font-semibold bg-transparent outline-none w-44 text-slate-700" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
           </div>
+          <DateRangePicker
+            dateStart={dateStart} dateEnd={dateEnd}
+            onChange={({start,end}) => {setDateStart(start||'');setDateEnd(end||'');}}
+            onClear={() => {setDateStart('');setDateEnd('');}}
+          />
           {isAdmin && (
             <button onClick={() => { resetForm(); setDialogOpen(true); }} className="flex items-center gap-2 bg-[#0A3D73] hover:bg-[#082D54] text-white text-xs font-black uppercase px-4 h-9 rounded-lg shadow-sm transition-colors">
               <FilePlus size={14}/> Lançar NF

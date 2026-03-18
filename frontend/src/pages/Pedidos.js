@@ -226,13 +226,22 @@ const Pedidos = () => {
   }, [clientesBase, pedidos]);
 
   const contadores = useMemo(() => {
-    const c = { TODOS: pedidos.length, PENDENTE: 0, IMPLANTADO: 0, NF_EMITIDA: 0, CANCELADO: 0, ATRASADO: 0 };
-    pedidos.forEach(p => {
+    // Filtra por data primeiro, igual ao totais.lista
+    const pedidosFiltradosPorData = pedidos.filter(p => {
+      if (!dateStart && !dateEnd) return true;
+      const de = p.data_entrega ? p.data_entrega.substring(0,10) : '';
+      if (dateStart && dateEnd) return de >= dateStart && de <= dateEnd;
+      if (dateStart) return de >= dateStart;
+      if (dateEnd) return de <= dateEnd;
+      return true;
+    });
+    const c = { TODOS: pedidosFiltradosPorData.length, PENDENTE: 0, IMPLANTADO: 0, NF_EMITIDA: 0, CANCELADO: 0, ATRASADO: 0 };
+    pedidosFiltradosPorData.forEach(p => {
       const sr = getStatusReal(p);
       if (c[sr] !== undefined) c[sr]++;
     });
     return c;
-  }, [pedidos]);
+  }, [pedidos, dateStart, dateEnd]);
 
   const totais = useMemo(() => {
     const lista = pedidos.filter(p => {

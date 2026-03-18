@@ -21,6 +21,17 @@ const STATUS_CONFIG = {
   IMPLANTADO: { label: 'Implantado', cls: 'bg-blue-100 text-blue-800 border-blue-300' },
   NF_EMITIDA: { label: 'NF Emitida', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
   CANCELADO:  { label: 'Cancelado',  cls: 'bg-slate-100 text-slate-500 border-slate-300' },
+  ATRASADO:   { label: 'Atrasado',   cls: 'bg-red-100 text-red-700 border-red-300' },
+};
+
+const getStatusReal = (p) => {
+  if (p.status === 'NF_EMITIDA' || p.status === 'CANCELADO') return p.status;
+  if (p.data_entrega) {
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const entrega = new Date(p.data_entrega + 'T00:00:00');
+    if (entrega < hoje) return 'ATRASADO';
+  }
+  return p.status;
 };
 
 const FORM_INITIAL = {
@@ -215,14 +226,17 @@ const Pedidos = () => {
   }, [clientesBase, pedidos]);
 
   const contadores = useMemo(() => {
-    const c = { TODOS: pedidos.length, PENDENTE: 0, IMPLANTADO: 0, NF_EMITIDA: 0, CANCELADO: 0 };
-    pedidos.forEach(p => { if (c[p.status] !== undefined) c[p.status]++; });
+    const c = { TODOS: pedidos.length, PENDENTE: 0, IMPLANTADO: 0, NF_EMITIDA: 0, CANCELADO: 0, ATRASADO: 0 };
+    pedidos.forEach(p => {
+      const sr = getStatusReal(p);
+      if (c[sr] !== undefined) c[sr]++;
+    });
     return c;
   }, [pedidos]);
 
   const totais = useMemo(() => {
     const lista = pedidos.filter(p => {
-      const matchStatus = filterStatus === 'TODOS' || p.status === filterStatus;
+      const matchStatus = filterStatus === 'TODOS' || getStatusReal(p) === filterStatus;
       const termo = searchTerm.toLowerCase();
       const matchSearch = !termo || p.cliente_nome?.toLowerCase().includes(termo) || p.numero_fe?.toLowerCase().includes(termo) || p.numero_oc?.toLowerCase().includes(termo) || p.item_nome?.toLowerCase().includes(termo) || p.numero_fabrica?.toLowerCase().includes(termo);
       let matchDate = true;
@@ -438,7 +452,7 @@ const Pedidos = () => {
 
       {/* ── FILTROS STATUS ── */}
       <div className="flex flex-wrap gap-2 mb-4">
-        {['TODOS',...STATUS_OPTIONS].map(s => (
+        {['TODOS',...STATUS_OPTIONS,'ATRASADO'].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)}
             className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${filterStatus===s ? 'bg-[#0A3D73] text-white border-[#0A3D73] shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-[#0A3D73]'}`}>
             {s==='TODOS'?'Todos':STATUS_CONFIG[s]?.label} <span className="opacity-60">({contadores[s]||0})</span>
@@ -469,11 +483,13 @@ const Pedidos = () => {
                 const fator = toNum(p.peso_total)>0 ? toNum(p.valor_total)/toNum(p.peso_total) : 0;
                 const comissaoValor = toNum(p.comissao_valor||item.comissao_valor||0);
                 const precoMilheiro = toNum(item.valor_unitario||0);
-                const statusCfg = STATUS_CONFIG[p.status]||STATUS_CONFIG.PENDENTE;
+                const statusReal = getStatusReal(p);
+                const statusCfg = STATUS_CONFIG[statusReal]||STATUS_CONFIG.PENDENTE;
                 return (
                   <tr key={p.id} onClick={() => handleEdit(p)}
                     className={`text-xs border-b border-slate-100 transition-colors
                       ${idx%2===0?'bg-white':'bg-slate-50/60'}
+                      ${statusReal==='ATRASADO'?'border-l-2 border-l-red-400':''}
                       ${travado?'opacity-60 cursor-not-allowed':'hover:bg-blue-50 cursor-pointer'}`}>
                     <td className="px-3 py-2.5 font-black text-[#0A3D73] font-mono whitespace-nowrap">
                       {p.numero_fabrica||<span className="text-slate-300 italic font-normal text-xs">— aguardando —</span>}

@@ -516,19 +516,43 @@ const Pedidos = () => {
             {totais.lista.length > 0 && (
               <tfoot>
                 <tr className="bg-[#0A3D73] text-white text-xs font-black">
-                  <td colSpan={6} className="px-3 py-2.5 text-right uppercase tracking-wide">Totais ({totais.lista.length})</td>
-                  <td className="px-3 py-2.5 text-right font-mono">{fmt(totais.peso)}</td>
-                  <td className="px-3 py-2.5 text-right font-mono">{totais.qtde.toLocaleString('pt-BR')}</td>
-                  <td className="px-3 py-2.5"/>
-                  <td className="px-3 py-2.5 text-right font-mono">R$ {fmt(totais.fatorMedio)}</td>
-                  <td className="px-3 py-2.5 text-right font-mono">R$ {fmt(totais.valor)}</td>
-                  <td className="px-3 py-2.5 text-right font-mono">R$ {fmt(totais.comissao)}</td>
-                  <td className="px-3 py-2.5"/>
+                  <td colSpan={13} className="px-3 py-2.5 text-right uppercase tracking-wide">↓ Ver totais abaixo</td>
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
+
+        {/* ── TOTAIS FORA DO SCROLL ── */}
+        {totais.lista.length > 0 && (
+          <div className="border-t-2 border-[#0A3D73] bg-[#0A3D73] text-white">
+            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-xs font-black">
+              <span className="uppercase tracking-wide opacity-70">Totais — {totais.lista.length} pedidos</span>
+              <div className="flex flex-wrap gap-6">
+                <div className="text-center">
+                  <p className="opacity-60 font-bold text-xs">Peso Total</p>
+                  <p className="font-black font-mono text-sm">{fmt(totais.peso)} KG</p>
+                </div>
+                <div className="text-center">
+                  <p className="opacity-60 font-bold text-xs">Qtde Total</p>
+                  <p className="font-black font-mono text-sm">{totais.qtde.toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="text-center">
+                  <p className="opacity-60 font-bold text-xs">Fator Médio</p>
+                  <p className="font-black font-mono text-sm">R$ {fmt(totais.fatorMedio)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="opacity-60 font-bold text-xs">Valor Total</p>
+                  <p className="font-black font-mono text-sm text-emerald-300">R$ {fmt(totais.valor)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="opacity-60 font-bold text-xs">Comissão Total</p>
+                  <p className="font-black font-mono text-sm text-yellow-300">R$ {fmt(totais.comissao)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
       </div>
 
       {/* ── DIALOG PEDIDO ── */}

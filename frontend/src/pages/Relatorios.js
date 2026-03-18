@@ -44,13 +44,16 @@ export default function Relatorios() {
       setLoading(true);
       try {
         const [rP, rC, rN] = await Promise.all([
-          fetch(`${API}/api/pedidos`, { headers }),
-          fetch(`${API}/api/clientes`, { headers }),
-          fetch(`${API}/api/notas-fiscais`, { headers }),
+          fetch(`${API}/pedidos`, { headers }),
+          fetch(`${API}/clientes`, { headers }),
+          fetch(`${API}/notas-fiscais`, { headers }),
         ]);
-        setPedidos(await rP.json());
-        setClientes(await rC.json());
-        setNotas(await rN.json());
+        const pData = await rP.json();
+        const cData = await rC.json();
+        const nData = await rN.json();
+        setPedidos(Array.isArray(pData) ? pData : []);
+        setClientes(Array.isArray(cData) ? cData : []);
+        setNotas(Array.isArray(nData) ? nData : []);
       } catch(e) { console.error(e); }
       setLoading(false);
     };

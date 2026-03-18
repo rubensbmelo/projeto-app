@@ -76,7 +76,7 @@ const Layout = ({ children }) => {
       {/* ── LOGO ── */}
       <div className="px-4 pt-3 pb-3 border-b border-white/5">
         <div className="flex items-center gap-2.5 mb-0.5">
-          <img src="/logo-repflow.png" alt="RepFlow" className="h-9 w-auto" />
+          <img src="/logo-repflow.png" alt="RepFlow" className="h-14 w-auto" />
         </div>
         <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-1.5">Representação Comercial</p>
       </div>
@@ -160,7 +160,7 @@ const Layout = ({ children }) => {
             style={{ background: 'linear-gradient(180deg, #0d1117 0%, #111827 60%, #0f172a 100%)' }}
           >
             <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
-              <img src="/logo-repflow.png" alt="RepFlow" className="h-7 w-auto" />
+              <img src="/logo-repflow.png" alt="RepFlow" className="h-10 w-auto" />
               <button onClick={() => setSidebarOpen(false)} className="p-1 hover:bg-white/10 rounded transition-colors">
                 <X size={14} className="text-slate-400" />
               </button>

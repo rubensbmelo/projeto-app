@@ -82,7 +82,11 @@ const Metas = () => {
 
   const clientesFiltrados = clientes.filter(c => !searchTerm || c.nome?.toLowerCase().includes(searchTerm.toLowerCase()));
   const totalMeta = clientesFiltrados.reduce((a,c) => a+getProgresso(c.id).meta, 0);
-  const totalRealizado = clientesFiltrados.reduce((a,c) => a+getProgresso(c.id).realizado, 0);
+
+  // Realizado global = soma de TODOS os clientes (com ou sem meta)
+  // Clientes sem meta que faturaram também contribuem para o atingimento geral
+  const totalRealizado = clientes.reduce((a,c) => a+getProgresso(c.id).realizado, 0);
+
   const pctGeral = totalMeta > 0 ? (totalRealizado/totalMeta)*100 : 0;
   const clientesComMeta = clientes.filter(c => getProgresso(c.id).meta > 0).length;
 

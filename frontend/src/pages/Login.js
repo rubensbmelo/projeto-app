@@ -30,7 +30,7 @@ const Login = () => {
       {/* ── COLUNA ESQUERDA ── */}
       <div
         className="hidden lg:flex lg:w-[60%] bg-cover bg-center relative overflow-hidden"
-        style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=2070)' }}
+        style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?q=80&w=2070)' }}
       >
         <div className="absolute inset-0 bg-gradient-to-br from-[#0A3D73]/95 via-[#0A3D73]/80 to-blue-900/40" />
         <div className="relative z-10 flex flex-col justify-center px-20 text-white">
@@ -63,7 +63,7 @@ const Login = () => {
           <div className="space-y-2">
             {/* Logo no lugar do badge */}
             <div className="flex items-center gap-2 mb-3">
-              <img src="/logo-repflow.png" alt="RepFlow" className="h-8 w-auto" />
+              <img src="/logo-repflow.png" alt="RepFlow" className="h-12 w-auto" />
             </div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">
               Acesso ao Sistema

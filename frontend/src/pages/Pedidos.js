@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 const STATUS_OPTIONS = ['PENDENTE', 'IMPLANTADO', 'NF_EMITIDA', 'CANCELADO'];
 
 const STATUS_CONFIG = {
-  PENDENTE:   { label: 'Pendente',   cls: 'bg-amber-100 text-amber-800 border-amber-300' },
+  PENDENTE:   { label: 'Pendente',   cls: 'bg-slate-100 text-slate-700 border-slate-300' },
   IMPLANTADO: { label: 'Implantado', cls: 'bg-blue-100 text-blue-800 border-blue-300' },
   NF_EMITIDA: { label: 'NF Emitida', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
   CANCELADO:  { label: 'Cancelado',  cls: 'bg-slate-100 text-slate-500 border-slate-300' },
@@ -480,11 +480,11 @@ const Pedidos = () => {
                       {travado && <Lock size={9} className="inline ml-1"/>}
                     </td>
                     <td className="px-3 py-2.5 font-bold text-blue-700 font-mono whitespace-nowrap">{p.numero_fe||'---'}</td>
-                    <td className="px-3 py-2.5 font-bold text-amber-700 whitespace-nowrap">{p.numero_oc||'---'}</td>
+                    <td className="px-3 py-2.5 font-bold text-slate-600 whitespace-nowrap">{p.numero_oc||'---'}</td>
                     <td className="px-3 py-2.5 font-semibold max-w-[140px] truncate">{p.item_nome||'---'}</td>
                     <td className="px-3 py-2.5 font-black whitespace-nowrap">
                       <span title={p.cliente_nome}>{nomeFantasia(p.cliente_nome)}</span>
-                      {p.pedido_mae && <span className="ml-1 text-xs bg-amber-100 text-amber-700 border border-amber-200 px-1 rounded font-black">SALDO</span>}
+                      {p.pedido_mae && <span className="ml-1 text-xs bg-blue-100 text-blue-700 border border-blue-200 px-1 rounded font-black">SALDO</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right text-slate-500 whitespace-nowrap">{fmtDate(p.data_entrega)}</td>
                     <td className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">{fmt(p.peso_total)}</td>
@@ -503,7 +503,7 @@ const Pedidos = () => {
                           </button>
                         )}
                         {p.historico_entrega && (
-                          <span className={`text-xs font-black ${Math.abs(parseFloat(p.historico_entrega.variacao_percent))<=10?'text-emerald-600':Math.abs(parseFloat(p.historico_entrega.variacao_percent))<=20?'text-amber-600':'text-red-600'}`}>
+                          <span className={`text-xs font-black ${Math.abs(parseFloat(p.historico_entrega.variacao_percent))<=10?'text-emerald-600':Math.abs(parseFloat(p.historico_entrega.variacao_percent))<=20?'text-orange-500':'text-red-600'}`}>
                             {parseFloat(p.historico_entrega.variacao_percent)>=0?'+':''}{p.historico_entrega.variacao_percent}%
                           </span>
                         )}
@@ -547,7 +547,7 @@ const Pedidos = () => {
                 </div>
                 <div className="text-center">
                   <p className="opacity-60 font-bold text-xs">Comissão Total</p>
-                  <p className="font-black font-mono text-sm text-yellow-300">R$ {fmt(totais.comissao)}</p>
+                  <p className="font-black font-mono text-sm text-emerald-300">R$ {fmt(totais.comissao)}</p>
                 </div>
               </div>
             </div>
@@ -571,7 +571,7 @@ const Pedidos = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div><label className={lbl}>Nº Pedido Fábrica</label><Input value={formData.numero_pedido_fabrica} onChange={e => setFormData({...formData, numero_pedido_fabrica:e.target.value})} className={inp} placeholder="Após implantação"/></div>
                 <div><label className={`${lbl} text-blue-700`}>Produto (FE) *</label><Input value={formData.numero_fe} onChange={e => handleFEChange(e.target.value)} className={`${inp} border-blue-200`} required/></div>
-                <div><label className={`${lbl} text-amber-600`}>OC Cliente</label><Input value={formData.numero_oc} onChange={e => setFormData({...formData, numero_oc:e.target.value})} className={inp}/></div>
+                <div><label className={`${lbl} text-slate-500`}>OC Cliente</label><Input value={formData.numero_oc} onChange={e => setFormData({...formData, numero_oc:e.target.value})} className={inp}/></div>
               </div>
             </div>
 
@@ -610,7 +610,7 @@ const Pedidos = () => {
                 <div><label className={lbl}>Quantidade *</label><Input type="number" value={formData.quantidade} onChange={e=>handleQtdeChange(e.target.value)} className={inp} required/></div>
                 <div><label className={lbl}>Peso Unit (KG)</label><div className="h-10 flex items-center px-3 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-500">{formData.peso_unit||'—'}</div></div>
                 <div><label className={lbl}>Peso Total (KG)</label><div className="h-10 flex items-center px-3 bg-blue-50 border border-blue-200 rounded-lg text-xs font-black text-blue-800">{formData.peso_total||'—'}</div></div>
-                <div><label className={`${lbl} text-amber-600`}>Vl. Milheiro</label><div className="h-10 flex items-center px-3 bg-amber-50 border border-amber-200 rounded-lg text-xs font-black text-amber-800">{formData.preco_milheiro||'—'}</div></div>
+                <div><label className={`${lbl} text-slate-500`}>Vl. Milheiro</label><div className="h-10 flex items-center px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-slate-700">{formData.preco_milheiro||'—'}</div></div>
                 <div><label className={`${lbl} text-blue-700`}>Fator R$/KG</label><div className="h-10 flex items-center px-3 bg-blue-50 border border-blue-200 rounded-lg text-xs font-black text-blue-800">R$ {formData.fator||'0,00'}</div></div>
                 <div><label className={`${lbl} text-emerald-700`}>Valor Total</label><div className="h-10 flex items-center px-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-black text-emerald-800">R$ {formData.valor_total||'0,00'}</div></div>
                 <div><label className={`${lbl} text-green-700`}>Comissão %</label><Input value={formData.comissao_percent} onChange={e=>handleComissaoPercentChange(e.target.value)} className={`${inp} border-green-200`} placeholder="Ex: 2,5"/></div>
@@ -646,7 +646,7 @@ const Pedidos = () => {
                 {entregaForm.qtde_entregue && entregaPedido.quantidade && (() => {
                   const v = ((parseInt(entregaForm.qtde_entregue)-entregaPedido.quantidade)/entregaPedido.quantidade*100);
                   const abs = Math.abs(v);
-                  const cor = abs<=10?'text-emerald-700 bg-emerald-50 border-emerald-200':abs<=20?'text-amber-700 bg-amber-50 border-amber-200':'text-red-700 bg-red-50 border-red-200';
+                  const cor = abs<=10?'text-emerald-700 bg-emerald-50 border-emerald-200':abs<=20?'text-orange-600 bg-orange-50 border-orange-200':'text-red-700 bg-red-50 border-red-200';
                   return (
                     <div className={`mt-1.5 px-3 py-1.5 border rounded-lg text-xs font-black ${cor}`}>
                       Variação: {v>=0?'+':''}{v.toFixed(1)}%

@@ -51,8 +51,8 @@ const Login = () => {
       </div>
 
       {/* ── COLUNA DIREITA ── */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 md:px-12 bg-[#E9EEF2] lg:bg-white">
-        <div className="w-full max-w-sm space-y-10">
+      <div className="flex-1 flex items-center justify-center px-6 py-4 md:px-12 bg-[#E9EEF2] lg:bg-white">
+        <div className="w-full max-w-sm space-y-5">
 
           {/* Logo mobile */}
           <div className="flex justify-center lg:hidden">
@@ -63,7 +63,7 @@ const Login = () => {
           <div className="space-y-2">
             {/* Logo no lugar do badge */}
             <div className="flex items-center gap-2 mb-3">
-              <img src="/logo-repflow.png" alt="RepFlow" className="h-18 w-auto" />
+              <img src="/logo-repflow.png" alt="RepFlow" className="h-14 w-auto" />
             </div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">
               Acesso ao Sistema

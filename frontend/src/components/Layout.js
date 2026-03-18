@@ -76,7 +76,7 @@ const Layout = ({ children }) => {
       {/* ── LOGO ── */}
       <div className="px-4 pt-3 pb-3 border-b border-white/5">
         <div className="flex items-center gap-2.5 mb-0.5">
-          <img src="/logo-repflow.png" alt="RepFlow" className="h-14 w-auto" />
+          <img src="/logo-repflow.png" alt="RepFlow" className="h-16 w-auto" />
         </div>
         <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-1.5">Representação Comercial</p>
       </div>

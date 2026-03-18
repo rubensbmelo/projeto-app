@@ -56,6 +56,8 @@ const Dashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [diasAbertos, setDiasAbertos] = useState({});
 
+  const [todasNotas, setTodasNotas] = useState([]);
+
   const semana = getSemanaAtual();
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line
@@ -73,12 +75,14 @@ const Dashboard = () => {
   const loadAll = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const [statsRes, metasRes, pedidosRes] = await Promise.all([
+      const [statsRes, metasRes, pedidosRes, notasRes] = await Promise.all([
         api.get('/dashboard/stats'),
         api.get('/metas'),
         api.get('/pedidos'),
+        api.get('/notas-fiscais'),
       ]);
       setStats(statsRes.data);
+      setTodasNotas(notasRes.data || []);
 
       const mesAtual = (new Date().getMonth() + 1).toString();
       const totalMeta = (metasRes.data || []).filter(m => m.mes === mesAtual).reduce((a, m) => a + parseFloat(m.valor_ton || 0), 0);
@@ -105,15 +109,17 @@ const Dashboard = () => {
 
   const porcentagemMeta = metaGlobal > 0 ? (stats.tonelagem_faturada / metaGlobal) * 100 : 0;
 
-  // Faturamento mensal para o gráfico
+  // Faturamento mensal para o gráfico — usa data_emissao das NFs
   const faturamentoPorMes = () => {
     const anoAtual = new Date().getFullYear();
     const arr = Array(12).fill(0);
-    todosPedidos.filter(p => p.status === 'NF_EMITIDA').forEach(p => {
-      const ano = p.criado_em?.substring(0,4);
+    todasNotas.forEach(n => {
+      const dataRef = n.data_emissao;
+      if (!dataRef) return;
+      const ano = dataRef.substring(0,4);
       if (ano === String(anoAtual)) {
-        const mes = parseInt(p.criado_em?.substring(5,7)) - 1;
-        if (mes >= 0 && mes < 12) arr[mes] += p.valor_total || 0;
+        const mes = parseInt(dataRef.substring(5,7)) - 1;
+        if (mes >= 0 && mes < 12) arr[mes] += n.valor_total || 0;
       }
     });
     return MESES.map((m,i) => ({ mes: m, valor: arr[i] }));

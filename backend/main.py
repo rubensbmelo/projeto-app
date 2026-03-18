@@ -765,11 +765,46 @@ async def deletar_nota(nota_id: str, usuario=Depends(apenas_admin)):
 
 @app.get("/api/vencimentos")
 async def listar_vencimentos(usuario=Depends(verificar_token)):
-    hoje = datetime.now(timezone.utc).date().isoformat()
-    await db.vencimentos.update_many(
-        {"status": "Pendente", "data_vencimento": {"$lt": hoje}},
-        {"$set": {"status": "Atrasado"}}
-    )
+    hoje = datetime.now(timezone.utc).date()
+    hoje_iso = hoje.isoformat()
+
+    # Lógica de comissão com defasagem de 1 mês:
+    # Vencimentos do cliente em MES X → comissão paga no último dia útil de MES X+1
+    # Status:
+    #   Pendente  → data_vencimento ainda não chegou ou mês seguinte ainda não fechou
+    #   Atrasado  → já passou o último dia do mês seguinte ao vencimento e não foi pago
+    #   Pago      → confirmado manualmente
+
+    vencimentos = await db.vencimentos.find({"status": {"$ne": "Pago"}}).to_list(length=1000)
+    for v in vencimentos:
+        data_venc_str = v.get("data_vencimento")
+        if not data_venc_str:
+            continue
+        try:
+            data_venc = datetime.strptime(data_venc_str, "%Y-%m-%d").date()
+            # Último dia do mês seguinte ao vencimento
+            mes_pagamento = data_venc.month + 1
+            ano_pagamento = data_venc.year
+            if mes_pagamento > 12:
+                mes_pagamento = 1
+                ano_pagamento += 1
+            import calendar
+            ultimo_dia = calendar.monthrange(ano_pagamento, mes_pagamento)[1]
+            prazo_pagamento = datetime(ano_pagamento, mes_pagamento, ultimo_dia).date()
+
+            if hoje > prazo_pagamento:
+                novo_status = "Atrasado"
+            else:
+                novo_status = "Pendente"
+
+            if v.get("status") != novo_status:
+                await db.vencimentos.update_one(
+                    {"_id": v["_id"]},
+                    {"$set": {"status": novo_status}}
+                )
+        except Exception:
+            continue
+
     vencimentos = await db.vencimentos.find().sort("data_vencimento", 1).to_list(length=1000)
     return [serialize(v) for v in vencimentos]
 

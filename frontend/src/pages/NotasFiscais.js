@@ -159,6 +159,8 @@ const NotasFiscais = () => {
   const [formData, setFormData] = useState(FORM_INITIAL);
   const [editandoData, setEditandoData] = useState(null);
   const [novaData, setNovaData] = useState('');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
 
   const pedidoSelecionado = pedidos.find(p => p.id === formData.pedido_id);
   const qtdePedida = pedidoSelecionado?.quantidade || 0;

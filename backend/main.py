@@ -504,9 +504,21 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
         s = p.get("status", "PENDENTE")
         pedidos_por_status[s] = pedidos_por_status.get(s, 0) + 1
 
+    # Comissão prevista = pedidos com data_entrega no mês atual (independente de quando foram criados)
+    pedidos_entrega_mes = [
+        p for p in todos_pedidos
+        if p.get("data_entrega", "")[:7] == now.strftime("%Y-%m")
+        and p.get("status") not in ("CANCELADO", "NF_EMITIDA")
+    ]
+
+    comissao_prevista = round(sum(
+        item.get("comissao_valor", 0)
+        for p in pedidos_entrega_mes for item in p.get("itens", [])
+    ), 2)
+
+    # Tonelagem implantada = pedidos com data_entrega no mês
     tonelagem_implantada = sum(
-        p.get("peso_total", 0) for p in pedidos_mes
-        if p.get("status") in ("IMPLANTADO", "PENDENTE")
+        p.get("peso_total", 0) for p in pedidos_entrega_mes
     ) / 1000
 
     notas_mes = await db.notas_fiscais.find({
@@ -536,11 +548,6 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
         comissao_realizada = sum(n.get("comissao_total", 0) for n in todas_notas_mes)
 
     tonelagem_faturada = tonelagem_faturada / 1000
-
-    comissao_prevista = round(sum(
-        item.get("comissao_valor", 0)
-        for p in pedidos_mes for item in p.get("itens", [])
-    ), 2)
 
     comissao_realizada = round(comissao_realizada, 2)
     comissao_mes = comissao_realizada

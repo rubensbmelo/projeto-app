@@ -521,13 +521,13 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
         p.get("peso_total", 0) for p in pedidos_entrega_mes
     ) / 1000
 
+    # Faturamento do mês = NFs com data_emissao no mês atual
+    # NFs sem data_emissao são ignoradas (não contabilizadas no mês)
     notas_mes = await db.notas_fiscais.find({
         "data_emissao": {"$gte": inicio_mes, "$lte": fim_mes}
     }).to_list(length=1000)
 
-    notas_sem_data = await db.notas_fiscais.find({"data_emissao": None}).to_list(length=1000)
-    notas_sem_data_mes = [n for n in notas_sem_data if n.get("criado_em", "") >= inicio_mes_iso]
-    todas_notas_mes = notas_mes + notas_sem_data_mes
+    todas_notas_mes = notas_mes
 
     pedidos_ids_faturados_mes = {str(n.get("pedido_id", "")) for n in todas_notas_mes if n.get("pedido_id")}
 

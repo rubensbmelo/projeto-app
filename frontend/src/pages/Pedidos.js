@@ -552,7 +552,7 @@ const Pedidos = () => {
               </div>
             </div>
           </div>
-        )
+        )}
       </div>
 
       {/* ── DIALOG PEDIDO ── */}

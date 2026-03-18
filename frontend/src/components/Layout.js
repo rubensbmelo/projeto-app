@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Package, FileText,
-  Receipt, DollarSign, Target, LogOut, Menu, X, ChevronRight, UserCog, ClipboardList
+  Receipt, DollarSign, Target, LogOut, Menu, X, ChevronRight, UserCog, ClipboardList, BarChart2
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -18,6 +18,7 @@ const Layout = ({ children }) => {
     { path: '/materiais',     icon: Package,         label: 'Materiais',     adminOnly: false, group: 'main' },
     { path: '/pedidos',       icon: FileText,        label: 'Pedidos',       adminOnly: false, group: 'main' },
     { path: '/orcamentos',    icon: ClipboardList,   label: 'Orçamentos',    adminOnly: false, group: 'main' },
+    { path: '/relatorios',    icon: BarChart2,        label: 'Relatórios',    adminOnly: false, group: 'main' },
     { path: '/comissoes',     icon: DollarSign,      label: 'Comissões',     adminOnly: false, group: 'main' },
     { path: '/notas-fiscais', icon: Receipt,         label: 'Notas Fiscais', adminOnly: true,  group: 'admin' },
     { path: '/metas',         icon: Target,          label: 'Metas',         adminOnly: true,  group: 'admin' },

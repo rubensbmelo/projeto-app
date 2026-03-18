@@ -12,6 +12,7 @@ import Comissoes from './pages/Comissoes';
 import Metas from './pages/Metas'; 
 import Usuarios from './pages/Usuarios';
 import Orcamentos from './pages/Orcamentos';
+import Relatorios from './pages/Relatorios';
 import Layout from './components/Layout';
 import './App.css';
 
@@ -49,6 +50,7 @@ function App() {
           <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
           <Route path="/comissoes" element={<ProtectedRoute><Comissoes /></ProtectedRoute>} />
           <Route path="/orcamentos" element={<ProtectedRoute><Orcamentos /></ProtectedRoute>} />
+          <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
           
           {/* Rotas Restritas (Apenas Admin pode ver Metas e Notas Fiscais) */}
           <Route path="/notas-fiscais" element={

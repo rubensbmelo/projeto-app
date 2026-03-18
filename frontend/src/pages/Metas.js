@@ -70,9 +70,9 @@ const Metas = () => {
     const meta = metas.find(m => m.cliente_id === clienteId && m.mes === selectedMonth);
     const metaTon = meta ? parseFloat(meta.valor_ton||0) : 0;
     const cliente = clientes.find(c => c.id === clienteId);
-    const clienteNomePart = cliente?.nome?.toLowerCase().split(' ')[0] || '';
+    const clienteNome = cliente?.nome?.toLowerCase() || '';
     const notasMes = getNotasDoMes(selectedMonth);
-    const notasCliente = notasMes.filter(n => n.cliente_id === clienteId || (!n.cliente_id && clienteNomePart && n.cliente_nome?.toLowerCase().includes(clienteNomePart)));
+    const notasCliente = notasMes.filter(n => n.cliente_id === clienteId || (!n.cliente_id && clienteNome && n.cliente_nome?.toLowerCase() === clienteNome));
     let realizadoKg = 0;
     for (const nota of notasCliente) { const pedido = pedidos.find(p => p.id === nota.pedido_id); if (pedido) realizadoKg += pedido.peso_total||0; }
     const realizado = realizadoKg / 1000;

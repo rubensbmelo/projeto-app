@@ -21,7 +21,22 @@ import './App.css';
 registerSW();
 
 // ─────────────────────────────────────────────
-// Detectores de ambiente
+// localStorage seguro — não quebra no iOS privado
+// ─────────────────────────────────────────────
+const storage = {
+  get: (key) => {
+    try { return localStorage.getItem(key); } catch { return null; }
+  },
+  set: (key, value) => {
+    try { localStorage.setItem(key, value); } catch { /* silencioso */ }
+  },
+  remove: (key) => {
+    try { localStorage.removeItem(key); } catch { /* silencioso */ }
+  },
+};
+
+// ─────────────────────────────────────────────
+// Detectores de ambiente iOS/Safari
 // ─────────────────────────────────────────────
 const isIOS = () =>
   /iphone|ipad|ipod/i.test(navigator.userAgent) ||
@@ -30,29 +45,34 @@ const isIOS = () =>
 const isSafari = () =>
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches ||
-  window.navigator.standalone === true;
+const isStandalone = () => {
+  try {
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true
+    );
+  } catch { return false; }
+};
 
 // ─────────────────────────────────────────────
-// Banner Android/Chrome — com botão instalar
+// Banner Android/Chrome
 // ─────────────────────────────────────────────
 function PWAInstallBannerAndroid() {
   const { canInstall, install, isInstalled } = usePWAInstall();
   const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem('repflow-pwa-dismissed') === 'true'
+    () => storage.get('repflow-pwa-dismissed') === 'true'
   );
 
   if (!canInstall || isInstalled || dismissed) return null;
 
   const handleDismiss = () => {
     setDismissed(true);
-    localStorage.setItem('repflow-pwa-dismissed', 'true');
+    storage.set('repflow-pwa-dismissed', 'true');
   };
 
   const handleInstall = () => {
     install();
-    localStorage.removeItem('repflow-pwa-dismissed');
+    storage.remove('repflow-pwa-dismissed');
   };
 
   return (
@@ -73,22 +93,19 @@ function PWAInstallBannerAndroid() {
 // ─────────────────────────────────────────────
 function PWAInstallBannerIOS() {
   const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem('repflow-ios-dismissed') === 'true'
+    () => storage.get('repflow-ios-dismissed') === 'true'
   );
 
-  // Só mostra se for iOS + Safari + não instalado + não dispensado
   if (!isIOS() || !isSafari() || isStandalone() || dismissed) return null;
 
   const handleDismiss = () => {
     setDismissed(true);
-    localStorage.setItem('repflow-ios-dismissed', 'true');
+    storage.set('repflow-ios-dismissed', 'true');
   };
 
   return (
     <div style={styles.bannerIOS}>
-      {/* Setinha apontando para baixo (onde fica o botão compartilhar no iPhone) */}
       <div style={styles.iosArrow} />
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <img src="/icons/icon-72x72.png" alt="RepFlow" width={32} height={32} style={{ borderRadius: 8 }} />
         <div>
@@ -97,21 +114,17 @@ function PWAInstallBannerIOS() {
         </div>
         <button onClick={handleDismiss} title="Fechar" style={{ ...styles.btnClose, marginLeft: 'auto' }}>✕</button>
       </div>
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={styles.iosStep}>
           <span style={styles.iosNum}>1</span>
           <span style={{ fontSize: 13 }}>
-            Toque no botão <strong>Compartilhar</strong>{' '}
-            <span style={{ fontSize: 16 }}>⬆️</span>{' '}
-            na barra inferior do Safari
+            Toque no botão <strong>Compartilhar</strong> <span style={{ fontSize: 16 }}>⬆️</span> na barra inferior do Safari
           </span>
         </div>
         <div style={styles.iosStep}>
           <span style={styles.iosNum}>2</span>
           <span style={{ fontSize: 13 }}>
-            Role para baixo e toque em{' '}
-            <strong>"Adicionar à Tela de Início"</strong>
+            Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong>
           </span>
         </div>
         <div style={styles.iosStep}>
@@ -126,7 +139,7 @@ function PWAInstallBannerIOS() {
 }
 
 // ─────────────────────────────────────────────
-// Indicador de conexão offline
+// Indicador offline
 // ─────────────────────────────────────────────
 function OnlineStatusIndicator() {
   const { isOnline, pendingCount } = useOnlineStatus();
@@ -156,7 +169,8 @@ function OnlineStatusIndicator() {
     }}>
       <span style={{
         width: 8, height: 8, borderRadius: '50%',
-        background: isOnline ? '#93C5FD' : '#FCA5A5', display: 'inline-block',
+        background: isOnline ? '#93C5FD' : '#FCA5A5',
+        display: 'inline-block',
       }} />
       {isOnline
         ? `Sincronizando ${pendingCount} item(ns)...`
@@ -166,7 +180,7 @@ function OnlineStatusIndicator() {
 }
 
 // ─────────────────────────────────────────────
-// Estilos compartilhados
+// Estilos
 // ─────────────────────────────────────────────
 const styles = {
   banner: {
@@ -246,15 +260,9 @@ function App() {
         </Routes>
       </BrowserRouter>
 
-      {/* Android/Chrome — banner com botão instalar */}
       <PWAInstallBannerAndroid />
-
-      {/* iOS/Safari — instrução manual passo a passo */}
       <PWAInstallBannerIOS />
-
-      {/* Indicador offline */}
       <OnlineStatusIndicator />
-
       <Toaster position="top-right" richColors />
     </AuthProvider>
   );

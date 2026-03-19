@@ -90,7 +90,93 @@ def apenas_admin(usuario=Depends(verificar_token)):
 
 
 # ============================================================
-# 5. Startup — cria admin padrão e índices
+# 5. LGPD — Soft Delete + Auditoria
+# ============================================================
+
+# Filtro padrão para excluir registros deletados de todas as listagens
+FILTRO_ATIVO = {"$or": [{"deletado": {"$exists": False}}, {"deletado": False}]}
+
+
+async def registrar_auditoria(
+    *,
+    acao: str,
+    colecao: str,
+    documento_id: str,
+    usuario_email: str,
+    usuario_role: str,
+    dados_antes: Optional[dict] = None,
+    dados_depois: Optional[dict] = None,
+    detalhes: Optional[str] = None,
+):
+    """
+    Registra qualquer ação no log de auditoria LGPD.
+    Imutável — nunca deletamos registros de auditoria (LGPD Art. 37).
+    """
+    for campo in ["senha_hash", "password", "token"]:
+        if dados_antes:
+            dados_antes.pop(campo, None)
+        if dados_depois:
+            dados_depois.pop(campo, None)
+
+    registro = {
+        "acao": acao,
+        "colecao": colecao,
+        "documento_id": str(documento_id),
+        "usuario_email": usuario_email,
+        "usuario_role": usuario_role,
+        "dados_antes": dados_antes,
+        "dados_depois": dados_depois,
+        "detalhes": detalhes,
+        "criado_em": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.auditoria.insert_one(registro)
+    logger.info(f"📋 Auditoria: {usuario_email} → {acao} em {colecao}/{documento_id}")
+
+
+async def soft_delete(
+    *,
+    colecao: str,
+    documento_id: str,
+    usuario_email: str,
+    usuario_role: str,
+    motivo: Optional[str] = None,
+):
+    """
+    Soft delete: marca o documento como deletado sem remover do banco.
+    Dados ficam retidos pelo prazo legal (5 anos) conforme LGPD.
+    """
+    oid = ObjectId(documento_id)
+    doc_atual = await db[colecao].find_one({"_id": oid})
+    if not doc_atual:
+        raise HTTPException(status_code=404, detail="Documento não encontrado")
+    if doc_atual.get("deletado"):
+        raise HTTPException(status_code=400, detail="Registro já foi deletado anteriormente")
+
+    await db[colecao].update_one(
+        {"_id": oid},
+        {"$set": {
+            "deletado": True,
+            "deletado_em": datetime.now(timezone.utc).isoformat(),
+            "deletado_por": usuario_email,
+            "motivo_delecao": motivo or "Não informado",
+        }}
+    )
+
+    doc_serial = {k: str(v) if isinstance(v, ObjectId) else v for k, v in doc_atual.items()}
+    await registrar_auditoria(
+        acao="DELETE",
+        colecao=colecao,
+        documento_id=documento_id,
+        usuario_email=usuario_email,
+        usuario_role=usuario_role,
+        dados_antes=doc_serial,
+        detalhes=f"Soft delete — motivo: {motivo or 'Não informado'}",
+    )
+    return {"message": "Registro deletado com segurança. Retido por 5 anos conforme LGPD."}
+
+
+# ============================================================
+# 6. Startup — cria admin padrão e índices
 # ============================================================
 @app.on_event("startup")
 async def startup():
@@ -100,10 +186,15 @@ async def startup():
     await db.pedidos.create_index("numero_oc")
     await db.pedidos.create_index("cliente_id")
     await db.pedidos.create_index("status")
-    # Índices orçamentos
     await db.orcamentos.create_index("numero_proposta")
     await db.orcamentos.create_index("cliente_id")
     await db.orcamentos.create_index("status")
+
+    # Índices LGPD — auditoria
+    await db.auditoria.create_index("colecao")
+    await db.auditoria.create_index("usuario_email")
+    await db.auditoria.create_index("criado_em")
+    await db.auditoria.create_index([("colecao", 1), ("documento_id", 1)])
 
     # Cria admin padrão se não existir
     admin_email = os.getenv("ADMIN_EMAIL", "rubensbmelo@hotmail.com")
@@ -124,7 +215,7 @@ async def startup():
 
 
 # ============================================================
-# 6. Schemas
+# 7. Schemas
 # ============================================================
 
 class LoginSchema(BaseModel):
@@ -198,7 +289,7 @@ class PedidoSchema(BaseModel):
 
 
 # ============================================================
-# 7. Helpers
+# 8. Helpers
 # ============================================================
 
 def to_object_id(id_str: str) -> ObjectId:
@@ -219,7 +310,7 @@ def gerar_numero_oc() -> str:
 
 
 # ============================================================
-# 8. Autenticação
+# 9. Autenticação
 # ============================================================
 
 @app.post("/api/auth/login")
@@ -231,6 +322,17 @@ async def login(data: LoginSchema):
         raise HTTPException(status_code=403, detail="Usuário inativo. Contate o administrador.")
 
     token = criar_token({"sub": usuario["email"], "role": usuario.get("role", "vendedor")})
+
+    # Auditoria de login
+    await registrar_auditoria(
+        acao="LOGIN",
+        colecao="usuarios",
+        documento_id=str(usuario.get("id", "")),
+        usuario_email=usuario["email"],
+        usuario_role=usuario.get("role", "vendedor"),
+        detalhes="Login realizado com sucesso",
+    )
+
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -260,11 +362,19 @@ async def trocar_senha(data: UsuarioUpdateSenhaSchema, usuario=Depends(verificar
         {"email": usuario["email"]},
         {"$set": {"senha_hash": gerar_hash_senha(data.nova_senha)}}
     )
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="usuarios",
+        documento_id=str(doc.get("id", "")),
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        detalhes="Senha alterada pelo próprio usuário",
+    )
     return {"message": "Senha atualizada com sucesso!"}
 
 
 # ============================================================
-# 9. Gestão de Usuários (apenas admin)
+# 10. Gestão de Usuários (apenas admin)
 # ============================================================
 
 @app.get("/api/usuarios")
@@ -287,18 +397,43 @@ async def criar_usuario(data: UsuarioCreateSchema, admin=Depends(apenas_admin)):
         "criado_em": datetime.now(timezone.utc).isoformat()
     }
     await db.usuarios.insert_one(novo)
+    await registrar_auditoria(
+        acao="CREATE",
+        colecao="usuarios",
+        documento_id=novo["id"],
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        dados_depois={"nome": data.nome, "email": data.email, "role": data.role},
+        detalhes=f"Usuário {data.email} criado com role {data.role}",
+    )
     return {"message": f"Usuário {data.email} criado!", "role": data.role}
 
 
 @app.put("/api/usuarios/{usuario_id}/desativar")
 async def desativar_usuario(usuario_id: str, admin=Depends(apenas_admin)):
     await db.usuarios.update_one({"id": usuario_id}, {"$set": {"ativo": False}})
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="usuarios",
+        documento_id=usuario_id,
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        detalhes="Usuário desativado",
+    )
     return {"message": "Usuário desativado!"}
 
 
 @app.put("/api/usuarios/{usuario_id}/ativar")
 async def ativar_usuario(usuario_id: str, admin=Depends(apenas_admin)):
     await db.usuarios.update_one({"id": usuario_id}, {"$set": {"ativo": True}})
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="usuarios",
+        documento_id=usuario_id,
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        detalhes="Usuário reativado",
+    )
     return {"message": "Usuário ativado!"}
 
 
@@ -308,6 +443,15 @@ async def editar_usuario(usuario_id: str, data: dict, admin=Depends(apenas_admin
     if not campos:
         raise HTTPException(status_code=400, detail="Nenhum campo válido para atualizar")
     await db.usuarios.update_one({"id": usuario_id}, {"$set": campos})
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="usuarios",
+        documento_id=usuario_id,
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        dados_depois=campos,
+        detalhes="Dados do usuário alterados",
+    )
     return {"message": "Usuário atualizado!"}
 
 
@@ -320,6 +464,14 @@ async def resetar_senha(usuario_id: str, data: dict, admin=Depends(apenas_admin)
         {"id": usuario_id},
         {"$set": {"senha_hash": gerar_hash_senha(nova_senha)}}
     )
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="usuarios",
+        documento_id=usuario_id,
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        detalhes=f"Senha resetada pelo admin {admin['email']}",
+    )
     return {"message": "Senha resetada com sucesso!"}
 
 
@@ -329,16 +481,25 @@ async def deletar_usuario(usuario_id: str, admin=Depends(apenas_admin)):
     if not doc:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     await db.usuarios.delete_one({"id": usuario_id})
+    await registrar_auditoria(
+        acao="DELETE",
+        colecao="usuarios",
+        documento_id=usuario_id,
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        dados_antes={"nome": doc.get("nome"), "email": doc.get("email"), "role": doc.get("role")},
+        detalhes="Usuário removido permanentemente",
+    )
     return {"message": "Usuário removido!"}
 
 
 # ============================================================
-# 10. Materiais
+# 11. Materiais
 # ============================================================
 
 @app.get("/api/materiais")
 async def listar_materiais(usuario=Depends(verificar_token)):
-    materiais = await db.materiais.find().to_list(length=500)
+    materiais = await db.materiais.find(FILTRO_ATIVO).to_list(length=500)
     return [serialize(m) for m in materiais]
 
 
@@ -348,11 +509,23 @@ async def criar_material(material: MaterialSchema, usuario=Depends(verificar_tok
     doc["criado_em"] = datetime.now(timezone.utc).isoformat()
     doc["criado_por"] = usuario["email"]
     result = await db.materiais.insert_one(doc)
+    await registrar_auditoria(
+        acao="CREATE",
+        colecao="materiais",
+        documento_id=str(result.inserted_id),
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_depois=doc,
+        detalhes=f"Material {doc.get('numero_fe', '')} cadastrado",
+    )
     return {"id": str(result.inserted_id), "message": "Material salvo!"}
 
 
 @app.put("/api/materiais/{material_id}")
 async def atualizar_material(material_id: str, material: MaterialSchema, usuario=Depends(verificar_token)):
+    antes = await db.materiais.find_one({"_id": to_object_id(material_id)})
+    antes_serial = {k: str(v) if isinstance(v, ObjectId) else v for k, v in (antes or {}).items()}
+
     doc = material.dict()
     doc["atualizado_em"] = datetime.now(timezone.utc).isoformat()
     doc["atualizado_por"] = usuario["email"]
@@ -362,30 +535,44 @@ async def atualizar_material(material_id: str, material: MaterialSchema, usuario
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Material não encontrado")
+
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="materiais",
+        documento_id=material_id,
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_antes=antes_serial,
+        dados_depois=doc,
+        detalhes=f"Material {doc.get('numero_fe', '')} atualizado",
+    )
     return {"message": "Material atualizado!"}
 
 
 @app.delete("/api/materiais/{material_id}")
-async def deletar_material(material_id: str, admin=Depends(apenas_admin)):
-    result = await db.materiais.delete_one({"_id": to_object_id(material_id)})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Material não encontrado")
-    return {"message": "Material removido!"}
+async def deletar_material(material_id: str, motivo: str = "", admin=Depends(apenas_admin)):
+    return await soft_delete(
+        colecao="materiais",
+        documento_id=material_id,
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        motivo=motivo,
+    )
 
 
 # ============================================================
-# 11. Clientes
+# 12. Clientes
 # ============================================================
 
 @app.get("/api/clientes")
 async def listar_clientes(usuario=Depends(verificar_token)):
-    clientes = await db.clientes.find().to_list(length=500)
+    clientes = await db.clientes.find(FILTRO_ATIVO).to_list(length=500)
     return [serialize(c) for c in clientes]
 
 
 @app.get("/api/clientes/{cliente_id}")
 async def buscar_cliente(cliente_id: str, usuario=Depends(verificar_token)):
-    cliente = await db.clientes.find_one({"_id": to_object_id(cliente_id)})
+    cliente = await db.clientes.find_one({"_id": to_object_id(cliente_id), **FILTRO_ATIVO})
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
     return serialize(cliente)
@@ -405,11 +592,23 @@ async def criar_cliente(cliente: ClienteSchema, usuario=Depends(verificar_token)
     doc["criado_em"] = datetime.now(timezone.utc).isoformat()
     doc["criado_por"] = usuario["email"]
     result = await db.clientes.insert_one(doc)
+    await registrar_auditoria(
+        acao="CREATE",
+        colecao="clientes",
+        documento_id=str(result.inserted_id),
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_depois={"nome": doc["nome"], "cnpj": doc["cnpj"], "cidade": doc["cidade"]},
+        detalhes=f"Cliente {doc['nome']} cadastrado — CNPJ {doc['cnpj']}",
+    )
     return {"id": str(result.inserted_id), "referencia": doc["referencia"], "message": "Cliente cadastrado!"}
 
 
 @app.put("/api/clientes/{cliente_id}")
 async def atualizar_cliente(cliente_id: str, cliente: ClienteSchema, usuario=Depends(verificar_token)):
+    antes = await db.clientes.find_one({"_id": to_object_id(cliente_id)})
+    antes_serial = {k: str(v) if isinstance(v, ObjectId) else v for k, v in (antes or {}).items()}
+
     doc = cliente.dict()
     doc["atualizado_em"] = datetime.now(timezone.utc).isoformat()
     doc["atualizado_por"] = usuario["email"]
@@ -419,24 +618,38 @@ async def atualizar_cliente(cliente_id: str, cliente: ClienteSchema, usuario=Dep
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="clientes",
+        documento_id=cliente_id,
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_antes=antes_serial,
+        dados_depois=doc,
+        detalhes=f"Cliente {doc['nome']} atualizado",
+    )
     return {"message": "Cliente atualizado!"}
 
 
 @app.delete("/api/clientes/{cliente_id}")
-async def deletar_cliente(cliente_id: str, admin=Depends(apenas_admin)):
-    result = await db.clientes.delete_one({"_id": to_object_id(cliente_id)})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Cliente não encontrado")
-    return {"message": "Cliente removido!"}
+async def deletar_cliente(cliente_id: str, motivo: str = "", admin=Depends(apenas_admin)):
+    return await soft_delete(
+        colecao="clientes",
+        documento_id=cliente_id,
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        motivo=motivo,
+    )
 
 
 # ============================================================
-# 12. Pedidos
+# 13. Pedidos
 # ============================================================
 
 @app.get("/api/pedidos")
 async def listar_pedidos(usuario=Depends(verificar_token)):
-    pedidos = await db.pedidos.find().to_list(length=500)
+    pedidos = await db.pedidos.find(FILTRO_ATIVO).to_list(length=500)
     return [serialize(p) for p in pedidos]
 
 
@@ -456,6 +669,15 @@ async def criar_pedido(pedido: PedidoSchema, usuario=Depends(verificar_token)):
     doc["criado_em"] = datetime.now(timezone.utc).isoformat()
     doc["criado_por"] = usuario["email"]
     result = await db.pedidos.insert_one(doc)
+    await registrar_auditoria(
+        acao="CREATE",
+        colecao="pedidos",
+        documento_id=str(result.inserted_id),
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_depois={"numero_oc": doc["numero_oc"], "cliente_nome": doc["cliente_nome"], "valor_total": doc["valor_total"]},
+        detalhes=f"Pedido {doc['numero_oc']} criado para {doc['cliente_nome']}",
+    )
     return {"id": str(result.inserted_id), "numero_oc": doc["numero_oc"], "message": "Pedido registrado!"}
 
 
@@ -466,23 +688,39 @@ async def atualizar_pedido(pedido_id: str, pedido: PedidoSchema, usuario=Depends
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
     if pedido_atual.get("status") == "NF_EMITIDA" and usuario.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Pedido com NF emitida não pode ser editado")
+
+    antes_serial = {k: str(v) if isinstance(v, ObjectId) else v for k, v in pedido_atual.items()}
     doc = pedido.dict()
     doc["atualizado_em"] = datetime.now(timezone.utc).isoformat()
     doc["atualizado_por"] = usuario["email"]
     await db.pedidos.update_one({"_id": to_object_id(pedido_id)}, {"$set": doc})
+
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="pedidos",
+        documento_id=pedido_id,
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_antes={"status": antes_serial.get("status"), "valor_total": antes_serial.get("valor_total")},
+        dados_depois={"status": doc["status"], "valor_total": doc["valor_total"]},
+        detalhes=f"Pedido {pedido_atual.get('numero_oc', '')} atualizado",
+    )
     return {"message": "Pedido atualizado com sucesso!"}
 
 
 @app.delete("/api/pedidos/{pedido_id}")
-async def deletar_pedido(pedido_id: str, admin=Depends(apenas_admin)):
-    result = await db.pedidos.delete_one({"_id": to_object_id(pedido_id)})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Pedido não encontrado")
-    return {"message": "Pedido removido!"}
+async def deletar_pedido(pedido_id: str, motivo: str = "", admin=Depends(apenas_admin)):
+    return await soft_delete(
+        colecao="pedidos",
+        documento_id=pedido_id,
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        motivo=motivo,
+    )
 
 
 # ============================================================
-# 13. Dashboard
+# 14. Dashboard
 # ============================================================
 
 @app.get("/api/dashboard/stats")
@@ -491,20 +729,19 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
     inicio_mes = now.replace(day=1).strftime("%Y-%m-%d")
     fim_mes = now.strftime("%Y-%m-%d")
 
-    todos_pedidos = await db.pedidos.find().to_list(length=1000)
+    todos_pedidos = await db.pedidos.find(FILTRO_ATIVO).to_list(length=1000)
 
     inicio_mes_iso = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
     pedidos_mes = [p for p in todos_pedidos if p.get("criado_em", "") >= inicio_mes_iso]
 
-    total_clientes = await db.clientes.count_documents({})
-    total_materiais = await db.materiais.count_documents({})
+    total_clientes = await db.clientes.count_documents(FILTRO_ATIVO)
+    total_materiais = await db.materiais.count_documents(FILTRO_ATIVO)
 
     pedidos_por_status = {}
     for p in todos_pedidos:
         s = p.get("status", "PENDENTE")
         pedidos_por_status[s] = pedidos_por_status.get(s, 0) + 1
 
-    # Comissão prevista = pedidos com data_entrega no mês atual (independente de quando foram criados)
     pedidos_entrega_mes = [
         p for p in todos_pedidos
         if p.get("data_entrega", "")[:7] == now.strftime("%Y-%m")
@@ -516,20 +753,15 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
         for p in pedidos_entrega_mes for item in p.get("itens", [])
     ), 2)
 
-    # Tonelagem implantada = pedidos com data_entrega no mês
     tonelagem_implantada = sum(
         p.get("peso_total", 0) for p in pedidos_entrega_mes
     ) / 1000
 
-    # Faturamento do mês = NFs com data_emissao no mês atual
-    # NFs sem data_emissao são ignoradas (não contabilizadas no mês)
     notas_mes = await db.notas_fiscais.find({
         "data_emissao": {"$gte": inicio_mes, "$lte": fim_mes}
     }).to_list(length=1000)
 
-    todas_notas_mes = notas_mes
-
-    pedidos_ids_faturados_mes = {str(n.get("pedido_id", "")) for n in todas_notas_mes if n.get("pedido_id")}
+    pedidos_ids_faturados_mes = {str(n.get("pedido_id", "")) for n in notas_mes if n.get("pedido_id")}
 
     tonelagem_faturada = 0.0
     faturado_mes_valor = 0.0
@@ -545,12 +777,10 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
                 comissao_realizada += item.get("comissao_valor", 0)
 
     if comissao_realizada == 0:
-        comissao_realizada = sum(n.get("comissao_total", 0) for n in todas_notas_mes)
+        comissao_realizada = sum(n.get("comissao_total", 0) for n in notas_mes)
 
     tonelagem_faturada = tonelagem_faturada / 1000
-
     comissao_realizada = round(comissao_realizada, 2)
-    comissao_mes = comissao_realizada
     comissoes_a_receber = round(comissao_prevista - comissao_realizada, 2)
     pedidos_mes_valor = sum(p.get("valor_total", 0) for p in pedidos_mes)
 
@@ -561,7 +791,7 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
         "comissao_realizada": comissao_realizada,
         "pedidos_mes_valor": round(pedidos_mes_valor, 2),
         "faturado_mes_valor": round(faturado_mes_valor, 2),
-        "comissao_mes": comissao_mes,
+        "comissao_mes": comissao_realizada,
         "comissoes_a_receber": comissoes_a_receber,
         "total_clientes": total_clientes,
         "total_materiais": total_materiais,
@@ -572,7 +802,7 @@ async def get_dashboard_stats(usuario=Depends(verificar_token)):
 
 
 # ============================================================
-# 14. Metas
+# 15. Metas
 # ============================================================
 
 class MetaSchema(BaseModel):
@@ -581,10 +811,12 @@ class MetaSchema(BaseModel):
     ano: int = 2026
     valor_ton: float = 0.0
 
+
 @app.get("/api/metas")
 async def listar_metas(usuario=Depends(verificar_token)):
     metas = await db.metas.find().to_list(length=1000)
     return [serialize(m) for m in metas]
+
 
 @app.post("/api/metas", status_code=201)
 async def criar_meta(meta: MetaSchema, usuario=Depends(apenas_admin)):
@@ -601,6 +833,7 @@ async def criar_meta(meta: MetaSchema, usuario=Depends(apenas_admin)):
     await db.metas.insert_one(doc)
     return {"message": "Meta cadastrada!"}
 
+
 @app.put("/api/metas/{meta_id}")
 async def atualizar_meta(meta_id: str, meta: MetaSchema, usuario=Depends(apenas_admin)):
     result = await db.metas.update_one(
@@ -611,6 +844,7 @@ async def atualizar_meta(meta_id: str, meta: MetaSchema, usuario=Depends(apenas_
         raise HTTPException(status_code=404, detail="Meta não encontrada")
     return {"message": "Meta atualizada!"}
 
+
 @app.delete("/api/metas/{meta_id}")
 async def deletar_meta(meta_id: str, usuario=Depends(apenas_admin)):
     result = await db.metas.delete_one({"_id": to_object_id(meta_id)})
@@ -620,12 +854,12 @@ async def deletar_meta(meta_id: str, usuario=Depends(apenas_admin)):
 
 
 # ============================================================
-# 15. Health Check
+# 16. Health Check
 # ============================================================
 
 @app.get("/")
 async def health_check():
-    return {"status": "online", "sistema": "ERP Vendas 2026", "versao": "3.0"}
+    return {"status": "online", "sistema": "ERP Vendas 2026", "versao": "3.1-lgpd"}
 
 
 @app.get("/api/health")
@@ -638,7 +872,7 @@ async def api_health():
 
 
 # ============================================================
-# 16. Notas Fiscais & Vencimentos
+# 17. Notas Fiscais & Vencimentos
 # ============================================================
 
 class NotaFiscalSchema(BaseModel):
@@ -651,20 +885,23 @@ class NotaFiscalSchema(BaseModel):
     qtde_entregue: Optional[int] = None
     motivo_entrega: Optional[str] = None
 
+
 class VencimentoUpdateSchema(BaseModel):
     status: Optional[str] = None
     data_pagamento: Optional[str] = None
+
 
 @app.get("/api/notas-fiscais")
 async def listar_notas(usuario=Depends(verificar_token)):
     notas = await db.notas_fiscais.find().sort("criado_em", -1).to_list(length=1000)
     return [serialize(n) for n in notas]
 
+
 @app.post("/api/notas-fiscais", status_code=201)
 async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
     try:
         pedido = await db.pedidos.find_one({"_id": to_object_id(nota.pedido_id)})
-    except:
+    except Exception:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
@@ -736,11 +973,24 @@ async def criar_nota(nota: NotaFiscalSchema, usuario=Depends(apenas_admin)):
         {"_id": to_object_id(nota.pedido_id)},
         {"$set": {"status": "NF_EMITIDA", "nota_fiscal_id": nota_id}}
     )
+
+    await registrar_auditoria(
+        acao="CREATE",
+        colecao="notas_fiscais",
+        documento_id=nota_id,
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_depois={"numero_nf": nota.numero_nf, "valor_total": nota.valor_total, "parcelas": nota.numero_parcelas},
+        detalhes=f"NF {nota.numero_nf} emitida — {nota.numero_parcelas} parcela(s)",
+    )
+
     return {"message": "NF criada e vencimentos gerados!", "nota_id": nota_id, "vencimentos_gerados": nota.numero_parcelas}
+
 
 class NotaFiscalUpdateSchema(BaseModel):
     data_emissao: Optional[str] = None
     numero_nf: Optional[str] = None
+
 
 @app.put("/api/notas-fiscais/{nota_id}")
 async def atualizar_nota(nota_id: str, data: NotaFiscalUpdateSchema, usuario=Depends(apenas_admin)):
@@ -753,7 +1003,17 @@ async def atualizar_nota(nota_id: str, data: NotaFiscalUpdateSchema, usuario=Dep
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="NF não encontrada")
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="notas_fiscais",
+        documento_id=nota_id,
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_depois=campos,
+        detalhes="NF atualizada",
+    )
     return {"message": "NF atualizada!"}
+
 
 @app.delete("/api/notas-fiscais/{nota_id}")
 async def deletar_nota(nota_id: str, usuario=Depends(apenas_admin)):
@@ -761,19 +1021,21 @@ async def deletar_nota(nota_id: str, usuario=Depends(apenas_admin)):
     result = await db.notas_fiscais.delete_one({"_id": to_object_id(nota_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="NF não encontrada")
+    await registrar_auditoria(
+        acao="DELETE",
+        colecao="notas_fiscais",
+        documento_id=nota_id,
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        detalhes="NF e vencimentos removidos permanentemente",
+    )
     return {"message": "NF e vencimentos removidos!"}
+
 
 @app.get("/api/vencimentos")
 async def listar_vencimentos(usuario=Depends(verificar_token)):
+    import calendar
     hoje = datetime.now(timezone.utc).date()
-    hoje_iso = hoje.isoformat()
-
-    # Lógica de comissão com defasagem de 1 mês:
-    # Vencimentos do cliente em MES X → comissão paga no último dia útil de MES X+1
-    # Status:
-    #   Pendente  → data_vencimento ainda não chegou ou mês seguinte ainda não fechou
-    #   Atrasado  → já passou o último dia do mês seguinte ao vencimento e não foi pago
-    #   Pago      → confirmado manualmente
 
     vencimentos = await db.vencimentos.find({"status": {"$ne": "Pago"}}).to_list(length=1000)
     for v in vencimentos:
@@ -782,21 +1044,14 @@ async def listar_vencimentos(usuario=Depends(verificar_token)):
             continue
         try:
             data_venc = datetime.strptime(data_venc_str, "%Y-%m-%d").date()
-            # Último dia do mês seguinte ao vencimento
             mes_pagamento = data_venc.month + 1
             ano_pagamento = data_venc.year
             if mes_pagamento > 12:
                 mes_pagamento = 1
                 ano_pagamento += 1
-            import calendar
             ultimo_dia = calendar.monthrange(ano_pagamento, mes_pagamento)[1]
             prazo_pagamento = datetime(ano_pagamento, mes_pagamento, ultimo_dia).date()
-
-            if hoje > prazo_pagamento:
-                novo_status = "Atrasado"
-            else:
-                novo_status = "Pendente"
-
+            novo_status = "Atrasado" if hoje > prazo_pagamento else "Pendente"
             if v.get("status") != novo_status:
                 await db.vencimentos.update_one(
                     {"_id": v["_id"]},
@@ -808,19 +1063,22 @@ async def listar_vencimentos(usuario=Depends(verificar_token)):
     vencimentos = await db.vencimentos.find().sort("data_vencimento", 1).to_list(length=1000)
     return [serialize(v) for v in vencimentos]
 
+
 @app.post("/api/admin/reset-vencimentos-pago")
 async def reset_vencimentos_pago(admin=Depends(apenas_admin)):
-    """
-    Reseta todos os vencimentos marcados como Pago de volta para Pendente,
-    para que sejam recalculados corretamente na próxima chamada de GET /vencimentos.
-    Usar apenas uma vez para corrigir status definidos automaticamente pelo sistema antigo.
-    """
     result = await db.vencimentos.update_many(
         {"status": "Pago", "data_pagamento": None},
         {"$set": {"status": "Pendente"}}
     )
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="vencimentos",
+        documento_id="bulk",
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        detalhes=f"Reset em massa: {result.modified_count} vencimentos voltaram para Pendente",
+    )
     return {"message": f"{result.modified_count} vencimentos resetados para Pendente!"}
-
 
 
 async def atualizar_vencimento(venc_id: str, data: VencimentoUpdateSchema, usuario=Depends(apenas_admin)):
@@ -837,7 +1095,7 @@ async def atualizar_vencimento(venc_id: str, data: VencimentoUpdateSchema, usuar
 
 
 # ============================================================
-# 17. Exportação Excel — Comissões
+# 18. Exportação Excel — Comissões
 # ============================================================
 
 @app.get("/api/export/comissoes")
@@ -853,7 +1111,7 @@ async def exportar_comissoes(usuario=Depends(apenas_admin)):
     header_fill = PatternFill("solid", fgColor="0A3D73")
     header_font = Font(bold=True, color="FFFFFF", size=9)
     header_align = Alignment(horizontal="center", vertical="center")
-    pago_fill   = PatternFill("solid", fgColor="D1FAE5")
+    pago_fill = PatternFill("solid", fgColor="D1FAE5")
     atraso_fill = PatternFill("solid", fgColor="FEE2E2")
     border = Border(
         left=Side(style="thin", color="CCCCCC"),
@@ -917,6 +1175,15 @@ async def exportar_comissoes(usuario=Depends(apenas_admin)):
     wb.save(output)
     output.seek(0)
 
+    await registrar_auditoria(
+        acao="EXPORT",
+        colecao="vencimentos",
+        documento_id="export",
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        detalhes=f"Exportação de comissões em {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+    )
+
     nome_arquivo = f"comissoes_{datetime.now().strftime('%d-%m-%Y')}.xlsx"
     return StreamingResponse(
         output,
@@ -926,7 +1193,7 @@ async def exportar_comissoes(usuario=Depends(apenas_admin)):
 
 
 # ============================================================
-# 18. Admin — Corrige cliente_id nos pedidos importados
+# 19. Admin — Utilitários
 # ============================================================
 
 @app.post("/api/admin/fix-cliente-ids")
@@ -978,6 +1245,15 @@ async def fix_cliente_ids(admin=Depends(apenas_admin)):
         else:
             nao_encontrados.append(nome_pedido)
 
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="pedidos",
+        documento_id="bulk-fix",
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        detalhes=f"Fix cliente_ids: {vinculados} pedidos vinculados",
+    )
+
     return {
         "message": f"{vinculados} pedidos vinculados com sucesso!",
         "nao_encontrados": list(set(nao_encontrados)),
@@ -986,7 +1262,114 @@ async def fix_cliente_ids(admin=Depends(apenas_admin)):
 
 
 # ============================================================
-# 20. Orçamentos
+# 20. LGPD — Endpoints de conformidade
+# ============================================================
+
+@app.get("/api/lgpd/auditoria")
+async def listar_auditoria(
+    colecao: Optional[str] = None,
+    usuario_email: Optional[str] = None,
+    acao: Optional[str] = None,
+    limite: int = 100,
+    admin=Depends(apenas_admin),
+):
+    """Retorna o log de auditoria completo. Somente admin."""
+    filtro = {}
+    if colecao:
+        filtro["colecao"] = colecao
+    if usuario_email:
+        filtro["usuario_email"] = usuario_email
+    if acao:
+        filtro["acao"] = acao.upper()
+
+    registros = await db.auditoria.find(filtro).sort("criado_em", -1).to_list(length=limite)
+    return [
+        {k: str(v) if isinstance(v, ObjectId) else v for k, v in r.items()}
+        for r in registros
+    ]
+
+
+@app.get("/api/lgpd/titular/{cnpj}")
+async def relatorio_titular(cnpj: str, admin=Depends(apenas_admin)):
+    """
+    Retorna todos os dados de um titular armazenados no sistema.
+    Exigido pela LGPD Art. 18 — direito de acesso do titular.
+    """
+    cliente = await db.clientes.find_one({"cnpj": cnpj})
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Titular não encontrado")
+
+    cliente_id = str(cliente["_id"])
+
+    pedidos = await db.pedidos.find({"cliente_id": cliente_id}).to_list(length=1000)
+    orcamentos = await db.orcamentos.find({"cliente_id": cliente_id}).to_list(length=1000)
+    notas = await db.notas_fiscais.find({"cliente_id": cliente_id}).to_list(length=1000)
+
+    def limpa(docs):
+        return [{k: str(v) if isinstance(v, ObjectId) else v for k, v in d.items()} for d in docs]
+
+    await registrar_auditoria(
+        acao="EXPORT",
+        colecao="clientes",
+        documento_id=cliente_id,
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        detalhes=f"Relatório LGPD gerado para CNPJ {cnpj}",
+    )
+
+    return {
+        "titular": {k: str(v) if isinstance(v, ObjectId) else v for k, v in cliente.items()},
+        "pedidos": limpa(pedidos),
+        "orcamentos": limpa(orcamentos),
+        "notas_fiscais": limpa(notas),
+        "total_registros": len(pedidos) + len(orcamentos) + len(notas),
+        "gerado_em": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.post("/api/lgpd/titular/{cnpj}/anonimizar")
+async def anonimizar_titular(cnpj: str, admin=Depends(apenas_admin)):
+    """
+    Anonimiza dados pessoais de um titular (LGPD Art. 18 — direito ao esquecimento).
+    Mantém dados financeiros por obrigação fiscal.
+    """
+    cliente = await db.clientes.find_one({"cnpj": cnpj})
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Titular não encontrado")
+
+    token = f"ANONIMIZADO-{cnpj[-4:]}"
+    await db.clientes.update_one(
+        {"cnpj": cnpj},
+        {"$set": {
+            "nome": token,
+            "email": f"{token}@removido.lgpd",
+            "telefone": "REMOVIDO",
+            "comprador": "REMOVIDO",
+            "endereco": "REMOVIDO",
+            "anonimizado": True,
+            "anonimizado_em": datetime.now(timezone.utc).isoformat(),
+            "anonimizado_por": admin["email"],
+        }}
+    )
+
+    await registrar_auditoria(
+        acao="DELETE",
+        colecao="clientes",
+        documento_id=str(cliente["_id"]),
+        usuario_email=admin["email"],
+        usuario_role=admin["role"],
+        detalhes=f"Dados pessoais anonimizados — CNPJ {cnpj} — direito ao esquecimento LGPD",
+    )
+
+    return {
+        "message": "Dados pessoais anonimizados com sucesso.",
+        "cnpj": cnpj,
+        "nota": "Dados financeiros mantidos por obrigação fiscal (5 anos).",
+    }
+
+
+# ============================================================
+# 21. Orçamentos
 # ============================================================
 
 class ItemOrcamento(BaseModel):
@@ -998,40 +1381,39 @@ class ItemOrcamento(BaseModel):
     preco_milhar: Optional[float] = 0.0
     subtotal: Optional[float] = 0.0
 
+
 class OrcamentoSchema(BaseModel):
     numero_proposta: Optional[str] = ""
     data_emissao: Optional[str] = ""
     validade: Optional[str] = "20 DIAS"
-    # Cliente
     cliente_id: Optional[str] = ""
     cliente_nome: Optional[str] = ""
     cliente_cnpj: Optional[str] = ""
     cliente_endereco: Optional[str] = ""
     cliente_contato: Optional[str] = ""
     cliente_telefone: Optional[str] = ""
-    # Itens
     itens: Optional[List[ItemOrcamento]] = []
-    # Condições
     prazo_pagamento: Optional[str] = "60 dias"
     frete: Optional[str] = "CIF"
     prazo_entrega: Optional[str] = "15 dias após confirmação"
     icms: Optional[str] = "20%"
     ipi: Optional[float] = 15.0
-    # Totais
     subtotal: Optional[float] = 0.0
     valor_ipi: Optional[float] = 0.0
     valor_total: Optional[float] = 0.0
-    # Status
-    status: Optional[str] = "PENDENTE"  # PENDENTE | ENVIADO | APROVADO | RECUSADO
+    status: Optional[str] = "PENDENTE"
     observacoes: Optional[str] = ""
+
 
 def gerar_numero_proposta() -> str:
     return f"PROP-{datetime.now().strftime('%d%m%Y-%H%M%S')}"
 
+
 @app.get("/api/orcamentos")
 async def listar_orcamentos(usuario=Depends(verificar_token)):
-    orcamentos = await db.orcamentos.find().sort("criado_em", -1).to_list(length=500)
+    orcamentos = await db.orcamentos.find(FILTRO_ATIVO).sort("criado_em", -1).to_list(length=500)
     return [serialize(o) for o in orcamentos]
+
 
 @app.get("/api/orcamentos/{orcamento_id}")
 async def buscar_orcamento(orcamento_id: str, usuario=Depends(verificar_token)):
@@ -1039,6 +1421,7 @@ async def buscar_orcamento(orcamento_id: str, usuario=Depends(verificar_token)):
     if not orc:
         raise HTTPException(status_code=404, detail="Orçamento não encontrado")
     return serialize(orc)
+
 
 @app.post("/api/orcamentos", status_code=201)
 async def criar_orcamento(orc: OrcamentoSchema, usuario=Depends(verificar_token)):
@@ -1048,7 +1431,17 @@ async def criar_orcamento(orc: OrcamentoSchema, usuario=Depends(verificar_token)
     doc["criado_em"] = datetime.now(timezone.utc).isoformat()
     doc["criado_por"] = usuario["email"]
     result = await db.orcamentos.insert_one(doc)
+    await registrar_auditoria(
+        acao="CREATE",
+        colecao="orcamentos",
+        documento_id=str(result.inserted_id),
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_depois={"numero_proposta": doc["numero_proposta"], "cliente_nome": doc.get("cliente_nome"), "valor_total": doc.get("valor_total")},
+        detalhes=f"Orçamento {doc['numero_proposta']} criado",
+    )
     return {"id": str(result.inserted_id), "numero_proposta": doc["numero_proposta"], "message": "Orçamento criado!"}
+
 
 @app.put("/api/orcamentos/{orcamento_id}")
 async def atualizar_orcamento(orcamento_id: str, orc: OrcamentoSchema, usuario=Depends(verificar_token)):
@@ -1061,7 +1454,17 @@ async def atualizar_orcamento(orcamento_id: str, orc: OrcamentoSchema, usuario=D
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Orçamento não encontrado")
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="orcamentos",
+        documento_id=orcamento_id,
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_depois={"status": doc.get("status"), "valor_total": doc.get("valor_total")},
+        detalhes="Orçamento atualizado",
+    )
     return {"message": "Orçamento atualizado!"}
+
 
 @app.patch("/api/orcamentos/{orcamento_id}/status")
 async def atualizar_status_orcamento(orcamento_id: str, data: dict, usuario=Depends(verificar_token)):
@@ -1073,18 +1476,31 @@ async def atualizar_status_orcamento(orcamento_id: str, data: dict, usuario=Depe
         {"_id": to_object_id(orcamento_id)},
         {"$set": {"status": novo_status, "atualizado_em": datetime.now(timezone.utc).isoformat()}}
     )
+    await registrar_auditoria(
+        acao="UPDATE",
+        colecao="orcamentos",
+        documento_id=orcamento_id,
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        dados_depois={"status": novo_status},
+        detalhes=f"Status do orçamento alterado para {novo_status}",
+    )
     return {"message": f"Status atualizado para {novo_status}"}
 
+
 @app.delete("/api/orcamentos/{orcamento_id}")
-async def deletar_orcamento(orcamento_id: str, usuario=Depends(verificar_token)):
-    result = await db.orcamentos.delete_one({"_id": to_object_id(orcamento_id)})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Orçamento não encontrado")
-    return {"message": "Orçamento removido!"}
+async def deletar_orcamento(orcamento_id: str, motivo: str = "", usuario=Depends(verificar_token)):
+    return await soft_delete(
+        colecao="orcamentos",
+        documento_id=orcamento_id,
+        usuario_email=usuario["email"],
+        usuario_role=usuario["role"],
+        motivo=motivo,
+    )
 
 
 # ============================================================
-# 21. Shutdown
+# 22. Shutdown
 # ============================================================
 
 @app.on_event("shutdown")
@@ -1095,4 +1511,4 @@ async def shutdown():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -26,8 +26,21 @@ registerSW();
 // ─────────────────────────────────────────────
 function PWAInstallBanner() {
   const { canInstall, install, isInstalled } = usePWAInstall();
+  const [dismissed, setDismissed] = React.useState(
+    () => localStorage.getItem('repflow-pwa-dismissed') === 'true'
+  );
 
-  if (!canInstall || isInstalled) return null;
+  if (!canInstall || isInstalled || dismissed) return null;
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    localStorage.setItem('repflow-pwa-dismissed', 'true');
+  };
+
+  const handleInstall = () => {
+    install();
+    localStorage.removeItem('repflow-pwa-dismissed');
+  };
 
   return (
     <div
@@ -45,23 +58,29 @@ function PWAInstallBanner() {
         alignItems: 'center',
         gap: '12px',
         boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-        maxWidth: '360px',
+        maxWidth: '380px',
         width: '90%',
       }}
     >
-      <img src="/icons/icon-72x72.png" alt="RepFlow" width={36} height={36} style={{ borderRadius: 8 }} />
+      <img
+        src="/icons/icon-72x72.png"
+        alt="RepFlow"
+        width={36}
+        height={36}
+        style={{ borderRadius: 8 }}
+      />
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 600, fontSize: 14 }}>Instalar RepFlow</div>
         <div style={{ fontSize: 12, opacity: 0.8 }}>Acesse sem internet, mais rápido</div>
       </div>
       <button
-        onClick={install}
+        onClick={handleInstall}
         style={{
           background: '#2563EB',
           color: '#fff',
           border: 'none',
           borderRadius: 8,
-          padding: '8px 16px',
+          padding: '8px 14px',
           fontWeight: 600,
           fontSize: 13,
           cursor: 'pointer',
@@ -69,6 +88,23 @@ function PWAInstallBanner() {
         }}
       >
         Instalar
+      </button>
+      <button
+        onClick={handleDismiss}
+        title="Fechar"
+        style={{
+          background: 'transparent',
+          color: 'rgba(255,255,255,0.6)',
+          border: 'none',
+          borderRadius: 6,
+          padding: '4px 6px',
+          fontSize: 18,
+          cursor: 'pointer',
+          lineHeight: 1,
+          flexShrink: 0,
+        }}
+      >
+        ✕
       </button>
     </div>
   );
@@ -177,7 +213,7 @@ function App() {
         </Routes>
       </BrowserRouter>
 
-      {/* PWA — Banner de instalação */}
+      {/* PWA — Banner de instalação com botão fechar */}
       <PWAInstallBanner />
 
       {/* PWA — Indicador offline */}

@@ -14,6 +14,9 @@ import io
 from dotenv import load_dotenv
 from jose import JWTError, jwt
 import bcrypt
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
@@ -23,6 +26,17 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Sentry
+sentry_sdk.init(
+    dsn="https://e74cc6823ff8a4ad9a5593ed3c0f0097@o4511075949674496.ingest.us.sentry.io/4511076015538176",
+    environment=os.getenv("ENVIRONMENT", "production"),
+    integrations=[StarletteIntegration(transaction_style="endpoint"), FastApiIntegration(transaction_style="endpoint")],
+    traces_sample_rate=0.1,
+    send_default_pii=False,
+    enabled=os.getenv("ENVIRONMENT", "production") == "production",
+)
+logger.info("✅ Sentry inicializado")
 
 app = FastAPI(title="ERP Vendas 2026 - Sistema Integrado")
 

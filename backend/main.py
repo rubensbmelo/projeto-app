@@ -34,7 +34,6 @@ sentry_sdk.init(
     integrations=[StarletteIntegration(transaction_style="endpoint"), FastApiIntegration(transaction_style="endpoint")],
     traces_sample_rate=0.1,
     send_default_pii=False,
-    enabled=os.getenv("ENVIRONMENT", "production") == "production",
 )
 logger.info("✅ Sentry inicializado")
 

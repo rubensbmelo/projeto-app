@@ -46,23 +46,14 @@ const Layout = ({ children }) => {
           }
         `}
       >
-        {/* Barra ativa esquerda */}
         <span className={`absolute left-0 top-0 bottom-0 w-0.5 transition-all duration-150 ${isActive ? 'bg-[#4A90D9]' : 'bg-transparent group-hover:bg-slate-600'}`} />
-
-        {/* Background ativo */}
         {isActive && (
           <span className="absolute inset-0 bg-gradient-to-r from-[#0A3D73]/80 to-[#0A3D73]/30" />
         )}
-
-        {/* Ícone */}
         <span className={`relative z-10 shrink-0 transition-all duration-150 ${isActive ? 'text-[#4A90D9]' : 'text-slate-500 group-hover:text-slate-300'}`}>
           <Icon size={13} strokeWidth={2.5} />
         </span>
-
-        {/* Label */}
         <span className="relative z-10 flex-1 text-left">{item.label}</span>
-
-        {/* Chevron no item ativo */}
         {isActive && (
           <ChevronRight size={10} className="relative z-10 text-[#4A90D9] shrink-0" />
         )}
@@ -73,28 +64,24 @@ const Layout = ({ children }) => {
   const SidebarContent = ({ isMobile = false }) => (
     <div className="flex flex-col h-full">
 
-      {/* ── LOGO ── */}
+      {/* ── LOGO — versão branca para fundo escuro ── */}
       <div className="px-4 pt-3 pb-3 border-b border-white/5">
         <div className="flex items-center gap-2.5 mb-0.5">
-          <img src="/logo-repflow.png" alt="RepFlow" className="h-16 w-auto" />
+          <img src="/logo-repflow-white.png" alt="RepFlow" className="h-16 w-auto" />
         </div>
         <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-1.5">Representação Comercial</p>
       </div>
 
       {/* ── NAV PRINCIPAL ── */}
       <nav className="flex-1 pt-2 pb-1 overflow-y-auto">
-
         <p className="px-4 mb-1.5 text-[8px] font-black uppercase tracking-[0.25em] text-slate-600">
           Módulos
         </p>
-
         <div className="space-y-0.5 px-1">
           {mainItems.map(item => (
             <NavItem key={item.path} item={item} isMobile={isMobile} />
           ))}
         </div>
-
-        {/* Seção Admin */}
         {adminItems.length > 0 && (
           <>
             <div className="mx-4 my-2 border-t border-white/5" />
@@ -123,7 +110,6 @@ const Layout = ({ children }) => {
             </p>
           </div>
         </div>
-
         <button
           onClick={handleLogout}
           className="group w-full flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-red-400 transition-all duration-150"
@@ -160,7 +146,7 @@ const Layout = ({ children }) => {
             style={{ background: 'linear-gradient(180deg, #0d1117 0%, #111827 60%, #0f172a 100%)' }}
           >
             <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
-              <img src="/logo-repflow.png" alt="RepFlow" className="h-10 w-auto" />
+              <img src="/logo-repflow-white.png" alt="RepFlow" className="h-10 w-auto" />
               <button onClick={() => setSidebarOpen(false)} className="p-1 hover:bg-white/10 rounded transition-colors">
                 <X size={14} className="text-slate-400" />
               </button>
@@ -176,20 +162,17 @@ const Layout = ({ children }) => {
         {/* Header */}
         <header className="shrink-0 bg-white border-b border-slate-200 px-4 h-11 flex items-center shadow-sm">
           <div className="flex items-center justify-between w-full">
-
             <button
               className="md:hidden p-1.5 hover:bg-slate-100 rounded transition-colors"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu size={18} className="text-slate-700" />
             </button>
-
             <div className="hidden md:flex items-center gap-2">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">
                 Painel de Controle Interno
               </span>
             </div>
-
             <div className="flex items-center gap-2">
               <div className="hidden sm:flex flex-col items-end">
                 <span className="text-[11px] font-bold text-slate-700 leading-none">{user?.nome}</span>
